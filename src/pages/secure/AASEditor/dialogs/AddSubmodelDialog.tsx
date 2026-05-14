@@ -28,12 +28,12 @@ import {
   SmartToyRounded,
 } from '@mui/icons-material';
 
+import type { AxiosInstance } from 'axios';
 import type { SubmodelTemplate, SubmodelElement, ElementType, XsdValueType } from '@/context/AASContext';
+import { useApiManager } from '@/api/apiManger';
 
-// ── GitHub IDTA catalog ──────────────────────────────────────────────────────
+// ── IDTA catalog ─────────────────────────────────────────────────────────────
 
-const GITHUB_TREE_URL =
-  'https://api.github.com/repos/admin-shell-io/submodel-templates/git/trees/main?recursive=1';
 const RAW_BASE =
   'https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/';
 
@@ -43,7 +43,7 @@ interface CatalogEntry {
   version: string;
   idtaCode: string;
   fileType: 'Template' | 'Example' | 'Sample' | 'Generic';
-  isV31: boolean;
+  metamodel: string;  // e.g. "3.0", "3.1" — extensible for future versions
   path: string;
   downloadUrl: string;
   category: string;
@@ -85,34 +85,33 @@ function parseEntry(path: string): CatalogEntry | null {
   else if (filename.includes('_Example_')) fileType = 'Example';
   else if (filename.includes('_Sample_')) fileType = 'Sample';
 
-  const isV31 = filename.includes('forAASMetamodelV3');
+  // Extract metamodel version from suffix, e.g. "forAASMetamodelV3.1" → "3.1"
+  const metamodelMatch = filename.match(/forAASMetamodelV(\d+(?:[._]\d+)*)/i);
+  const metamodel = metamodelMatch ? metamodelMatch[1].replace('_', '.') : '3.0';
 
   return {
-    id: `${name}__${version}__${fileType}__${isV31 ? 'v31' : 'std'}`,
+    id: `${name}__${version}__${fileType}__mm${metamodel}`,
     name,
     version,
     idtaCode,
     fileType,
-    isV31,
+    metamodel,
     path,
     downloadUrl: RAW_BASE + path,
     category: deriveCategory(name),
   };
 }
 
-async function fetchCatalog(): Promise<CatalogEntry[]> {
+async function fetchCatalog(api: AxiosInstance): Promise<CatalogEntry[]> {
   if (catalogCache) return catalogCache;
 
-  const res = await fetch(GITHUB_TREE_URL);
-  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
-  const data = await res.json();
+  const { data } = await api.get<{ data: string[] }>('/v1/idta/catalog');
+  const paths: string[] = data.data;
 
   const entries: CatalogEntry[] = [];
-  for (const item of data.tree) {
-    if (item.type === 'blob' && item.path.startsWith('published/') && item.path.endsWith('.json')) {
-      const entry = parseEntry(item.path);
-      if (entry) entries.push(entry);
-    }
+  for (const p of paths) {
+    const entry = parseEntry(p);
+    if (entry) entries.push(entry);
   }
 
   entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
@@ -248,11 +247,12 @@ interface AddSubmodelDialogProps {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelDialogProps) {
+  const api = useApiManager();
   const [tab, setTab] = useState<'catalog' | 'custom'>('catalog');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
   const [onlyTemplates, setOnlyTemplates] = useState(true);
-  const [showV31, setShowV31] = useState(false);
+  const [metamodelFilter, setMetamodelFilter] = useState<string>('All');
   const [selected, setSelected] = useState<string | null>(null);
   const [custom, setCustom] = useState({ idShort: '', semanticId: '', description: '' });
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -273,17 +273,18 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
     }
     setCatalogLoading(true);
     setCatalogError(null);
-    fetchCatalog()
+    fetchCatalog(api)
       .then(setCatalog)
       .catch((e: Error) => setCatalogError(e.message))
       .finally(() => setCatalogLoading(false));
   }, [open]);
 
   const categories = ['All', ...Array.from(new Set(catalog.map(e => e.category))).sort()];
+  const metamodelVersions = ['All', ...Array.from(new Set(catalog.map(e => e.metamodel))).sort()];
 
   const filtered = catalog.filter(e => {
     if (onlyTemplates && e.fileType !== 'Template') return false;
-    if (!showV31 && e.isV31) return false;
+    if (metamodelFilter !== 'All' && e.metamodel !== metamodelFilter) return false;
     if (catFilter !== 'All' && e.category !== catFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -303,7 +304,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
     setSearch('');
     setCatFilter('All');
     setOnlyTemplates(true);
-    setShowV31(false);
+    setMetamodelFilter('All');
     setSelected(null);
     setCustom({ idShort: '', semanticId: '', description: '' });
     setChatMessages([{ role: 'bot', text: CHATBOT_RESPONSES.default }]);
@@ -448,14 +449,17 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                     color={onlyTemplates ? 'primary' : 'default'}
                     onClick={() => setOnlyTemplates(p => !p)}
                   />
-                  <Chip
-                    label="AAS V3.1"
-                    size="small"
-                    clickable
-                    variant={showV31 ? 'filled' : 'outlined'}
-                    color={showV31 ? 'secondary' : 'default'}
-                    onClick={() => setShowV31(p => !p)}
-                  />
+                  {metamodelVersions.map(v => (
+                    <Chip
+                      key={v}
+                      label={v === 'All' ? 'Tutti metamodel' : `AAS ${v}`}
+                      size="small"
+                      clickable
+                      variant={metamodelFilter === v ? 'filled' : 'outlined'}
+                      color={metamodelFilter === v ? 'secondary' : 'default'}
+                      onClick={() => setMetamodelFilter(v)}
+                    />
+                  ))}
                 </Stack>
                 {/* Category chips */}
                 <Stack direction="row" spacing={0.5} flexWrap="wrap">
@@ -517,15 +521,13 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                           variant="outlined"
                           sx={{ fontFamily: 'monospace', fontSize: 9 }}
                         />
-                        {entry.isV31 && (
-                          <Chip
-                            label="V3.1"
-                            size="small"
-                            color="secondary"
-                            variant="outlined"
-                            sx={{ fontFamily: 'monospace', fontSize: 9 }}
-                          />
-                        )}
+                        <Chip
+                          label={`AAS ${entry.metamodel}`}
+                          size="small"
+                          color={entry.metamodel === '3.0' ? 'default' : 'secondary'}
+                          variant="outlined"
+                          sx={{ fontFamily: 'monospace', fontSize: 9 }}
+                        />
                         {entry.fileType !== 'Template' && (
                           <Chip
                             label={entry.fileType}
