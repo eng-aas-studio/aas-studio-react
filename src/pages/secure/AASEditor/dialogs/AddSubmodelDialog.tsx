@@ -1,9 +1,10 @@
-import { useState, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import {
   Avatar,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -21,32 +22,194 @@ import {
   AddRounded,
   CheckRounded,
   CloseRounded,
+  ErrorOutlineRounded,
   SearchRounded,
   SendRounded,
   SmartToyRounded,
 } from '@mui/icons-material';
 
-import { SM_CATALOG } from '@/context/AASContext';
-import type { SubmodelTemplate } from '@/context/AASContext';
+import type { SubmodelTemplate, SubmodelElement, ElementType, XsdValueType } from '@/context/AASContext';
 
-// ── Chatbot data ────────────────────────────────────────────────────────────
+// ── GitHub IDTA catalog ──────────────────────────────────────────────────────
+
+const GITHUB_TREE_URL =
+  'https://api.github.com/repos/admin-shell-io/submodel-templates/git/trees/main?recursive=1';
+const RAW_BASE =
+  'https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/';
+
+interface CatalogEntry {
+  id: string;
+  name: string;
+  version: string;
+  idtaCode: string;
+  fileType: 'Template' | 'Example' | 'Sample' | 'Generic';
+  isV31: boolean;
+  path: string;
+  downloadUrl: string;
+  category: string;
+}
+
+let catalogCache: CatalogEntry[] | null = null;
+
+function deriveCategory(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('nameplate') || n.includes('identification')) return 'Identification';
+  if (n.includes('technical data')) return 'Technical';
+  if (n.includes('document') || n.includes('handover')) return 'Documentation';
+  if (n.includes('maintenance') || n.includes('service')) return 'Maintenance';
+  if (n.includes('carbon') || n.includes('footprint') || n.includes('passport') || n.includes('sustainability')) return 'Sustainability';
+  if (n.includes('bill of') || n.includes('bom') || n.includes('hierarchy')) return 'Structure';
+  if (n.includes('time series') || n.includes('operational')) return 'Operational';
+  if (n.includes('artificial') || n.includes('machine learning')) return 'AI';
+  if (n.includes('asset interface') || n.includes('connectivity')) return 'Connectivity';
+  if (n.includes('safety') || n.includes('alarm')) return 'Safety';
+  return 'Other';
+}
+
+function parseEntry(path: string): CatalogEntry | null {
+  // published/[Name]/[Major]/[Minor]/([Patch]/)?[filename].json
+  const rel = path.replace('published/', '');
+  const parts = rel.split('/');
+  if (parts.length < 3) return null;
+
+  const name = parts[0];
+  const filename = parts[parts.length - 1];
+  const versionParts = parts.slice(1, parts.length - 1);
+  const version = versionParts.join('.');
+
+  const idtaMatch = filename.match(/IDTA[- ](\d+)/i);
+  const idtaCode = idtaMatch ? `IDTA ${idtaMatch[1]}` : '';
+
+  let fileType: CatalogEntry['fileType'] = 'Generic';
+  if (filename.includes('_Template_')) fileType = 'Template';
+  else if (filename.includes('_Example_')) fileType = 'Example';
+  else if (filename.includes('_Sample_')) fileType = 'Sample';
+
+  const isV31 = filename.includes('forAASMetamodelV3');
+
+  return {
+    id: `${name}__${version}__${fileType}__${isV31 ? 'v31' : 'std'}`,
+    name,
+    version,
+    idtaCode,
+    fileType,
+    isV31,
+    path,
+    downloadUrl: RAW_BASE + path,
+    category: deriveCategory(name),
+  };
+}
+
+async function fetchCatalog(): Promise<CatalogEntry[]> {
+  if (catalogCache) return catalogCache;
+
+  const res = await fetch(GITHUB_TREE_URL);
+  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+  const data = await res.json();
+
+  const entries: CatalogEntry[] = [];
+  for (const item of data.tree) {
+    if (item.type === 'blob' && item.path.startsWith('published/') && item.path.endsWith('.json')) {
+      const entry = parseEntry(item.path);
+      if (entry) entries.push(entry);
+    }
+  }
+
+  entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+  catalogCache = entries;
+  return entries;
+}
+
+// ── AAS JSON → SubmodelTemplate mapper ──────────────────────────────────────
+
+function extractSemanticId(semanticId: unknown): string {
+  if (!semanticId || typeof semanticId !== 'object') return '';
+  const obj = semanticId as Record<string, unknown>;
+  const keys = (obj.keys ?? obj.Keys) as Array<Record<string, string>> | undefined;
+  return keys?.[0]?.value ?? '';
+}
+
+function mapAasElements(elements: unknown[]): SubmodelElement[] {
+  if (!Array.isArray(elements)) return [];
+  return elements.map((el: unknown): SubmodelElement => {
+    const e = el as Record<string, unknown>;
+    const modelType = String(e.modelType ?? '');
+    const base = {
+      idShort: String(e.idShort ?? ''),
+      semanticId: extractSemanticId(e.semanticId),
+      required: false,
+    };
+    if (modelType === 'SubmodelElementCollection') {
+      const raw = (e.value as unknown[]) ?? [];
+      return {
+        ...base,
+        type: 'SubmodelElementCollection',
+        children: raw
+          .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null && 'idShort' in c)
+          .map(c => ({
+            idShort: String(c.idShort),
+            type: String(c.modelType ?? 'Property') as ElementType,
+            valueType: c.valueType as XsdValueType | undefined,
+            semanticId: extractSemanticId(c.semanticId),
+            required: false,
+          })),
+      };
+    }
+    if (modelType === 'MultiLanguageProperty') return { ...base, type: 'MultiLanguageProperty', value: {} };
+    if (modelType === 'File') return { ...base, type: 'File', contentType: String(e.contentType ?? ''), value: '' };
+    if (modelType === 'Blob') return { ...base, type: 'Blob', contentType: String(e.contentType ?? '') };
+    if (modelType === 'ReferenceElement') return { ...base, type: 'ReferenceElement' };
+    if (modelType === 'Operation') return { ...base, type: 'Operation' };
+    return {
+      ...base,
+      type: 'Property',
+      valueType: (e.valueType as XsdValueType) ?? 'xs:string',
+      value: '',
+    };
+  });
+}
+
+async function fetchSubmodelTemplate(entry: CatalogEntry): Promise<SubmodelTemplate> {
+  const res = await fetch(entry.downloadUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json() as Record<string, unknown>;
+
+  // IDTA JSON files are wrapped: { assetAdministrationShells, submodels: [...], conceptDescriptions }
+  const submodelsArr = json.submodels as Array<Record<string, unknown>> | undefined;
+  const submodel: Record<string, unknown> = submodelsArr?.[0] ?? json;
+
+  const semanticId =
+    extractSemanticId(submodel.semanticId) || String(submodel.id ?? entry.downloadUrl);
+  const elements = mapAasElements((submodel.submodelElements as unknown[]) ?? []);
+
+  return {
+    id: semanticId,
+    idShort: String(submodel.idShort ?? entry.name),
+    semanticId,
+    description: `${entry.name} v${entry.version}`,
+    category: entry.category,
+    elements,
+  };
+}
+
+// ── Chatbot ──────────────────────────────────────────────────────────────────
 
 const CHATBOT_RESPONSES: Record<string, string> = {
   default:
     "Ciao! Sono l'assistente AAS. Posso aiutarti a trovare il submodel giusto.\n\nProva:\n• \"Quale submodel per manutenzione?\"\n• \"Cos'è ECLASS?\"\n• \"Submodel per carbon footprint\"",
   nameplate:
-    '**Nameplate** (urn:idta:aas:submodel:Nameplate:1:0).\nContiene ManufacturerName, SerialNumber, YearOfConstruction.',
+    '**Digital Nameplate** (IDTA 02006).\nContiene ManufacturerName, SerialNumber, YearOfConstruction.',
   maintenance:
-    'Usa **PredictiveMaintenance**:\n• MaintenanceSchedule\n• RemainingUsefulLife\n• HealthIndex',
+    'Usa **Maintenance** (IDTA 02017):\n• MaintenanceSchedule\n• RemainingUsefulLife',
   technical:
-    'Usa **TechnicalData** v1.2:\n• GeneralInformation\n• TechnicalProperties (ECLASS)',
+    'Usa **TechnicalData** (IDTA 02003):\n• GeneralInformation\n• TechnicalProperties (ECLASS)',
   documentation:
-    'Usa **HandoverDocumentation** v1.2 con DocumentId, DocumentTitle e DocumentFile.',
+    'Usa **HandoverDocumentation** (IDTA 02004) con DocumentId, DocumentTitle e DocumentFile.',
   carbon:
-    'Usa **CarbonFootprint** (Catena-X):\n• CO2EquivalentTotal\n• ReferenceUnit',
-  bom: 'Usa **BillOfMaterial** con PartNumber, Quantity e PartReference.',
+    'Usa **CarbonFootprint** (IDTA 02023):\n• CO2EquivalentTotal\n• ReferenceUnit',
+  bom: 'Usa **HierarchyOfAssets** (IDTA 02011) con PartNumber, Quantity e PartReference.',
   operational:
-    'Usa **OperationalData**:\n• OperatingHours\n• CycleCount\n• CurrentTemperature',
+    'Usa **TimeSeriesData** (IDTA 02008):\n• RecordCollection\n• Timestamps',
   eclass:
     'ECLASS: `0173-1#02-XXXYYY#ZZZ`\nCerca su eclass.eu per i codici esatti.',
 };
@@ -65,14 +228,14 @@ function getChatResponse(msg: string): string {
     return CHATBOT_RESPONSES.carbon;
   if (l.includes('bom') || l.includes('distinta') || l.includes('material'))
     return CHATBOT_RESPONSES.bom;
-  if (l.includes('operat') || l.includes('runtime') || l.includes('temperatur'))
+  if (l.includes('operat') || l.includes('runtime') || l.includes('time series'))
     return CHATBOT_RESPONSES.operational;
   if (l.includes('eclass') || l.includes('semantic') || l.includes('0173'))
     return CHATBOT_RESPONSES.eclass;
   return 'Non ho trovato un match. Prova:\n• "submodel per manutenzione"\n• "come funziona ECLASS"\n• "dati operativi"';
 }
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
 type ChatMessage = { role: 'bot' | 'user'; text: string };
 
@@ -82,12 +245,14 @@ interface AddSubmodelDialogProps {
   onAdd: (sm: SubmodelTemplate) => void;
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelDialogProps) {
   const [tab, setTab] = useState<'catalog' | 'custom'>('catalog');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
+  const [onlyTemplates, setOnlyTemplates] = useState(true);
+  const [showV31, setShowV31] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [custom, setCustom] = useState({ idShort: '', semanticId: '', description: '' });
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -95,15 +260,40 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
   ]);
   const [chatInput, setChatInput] = useState('');
 
-  const categories = ['All', ...new Set(SM_CATALOG.map((s) => s.category))];
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
-  const filtered = SM_CATALOG.filter((s) => {
-    const matchSearch =
-      !search ||
-      s.idShort.toLowerCase().includes(search.toLowerCase()) ||
-      s.semanticId.toLowerCase().includes(search.toLowerCase()) ||
-      s.description.toLowerCase().includes(search.toLowerCase());
-    return matchSearch && (catFilter === 'All' || s.category === catFilter);
+  useEffect(() => {
+    if (!open) return;
+    if (catalogCache) {
+      setCatalog(catalogCache);
+      return;
+    }
+    setCatalogLoading(true);
+    setCatalogError(null);
+    fetchCatalog()
+      .then(setCatalog)
+      .catch((e: Error) => setCatalogError(e.message))
+      .finally(() => setCatalogLoading(false));
+  }, [open]);
+
+  const categories = ['All', ...Array.from(new Set(catalog.map(e => e.category))).sort()];
+
+  const filtered = catalog.filter(e => {
+    if (onlyTemplates && e.fileType !== 'Template') return false;
+    if (!showV31 && e.isV31) return false;
+    if (catFilter !== 'All' && e.category !== catFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (
+        e.name.toLowerCase().includes(q) ||
+        e.idtaCode.toLowerCase().includes(q) ||
+        e.version.includes(q)
+      );
+    }
+    return true;
   });
 
   const canAdd = tab === 'catalog' ? !!selected : !!custom.idShort.trim();
@@ -112,6 +302,8 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
     setTab('catalog');
     setSearch('');
     setCatFilter('All');
+    setOnlyTemplates(true);
+    setShowV31(false);
     setSelected(null);
     setCustom({ idShort: '', semanticId: '', description: '' });
     setChatMessages([{ role: 'bot', text: CHATBOT_RESPONSES.default }]);
@@ -123,20 +315,31 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
     onClose();
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (tab === 'catalog' && selected) {
-      const template = SM_CATALOG.find((s) => s.id === selected);
-      if (template) {
+      const entry = catalog.find(e => e.id === selected);
+      if (!entry) return;
+      setAdding(true);
+      setCatalogError(null);
+      try {
+        const template = await fetchSubmodelTemplate(entry);
         onAdd({
           ...template,
           id: `${template.semanticId}:inst:${Date.now()}`,
-          elements: template.elements.map((e) => ({
-            ...e,
-            value: e.type === 'MultiLanguageProperty' ? {} : '',
+          elements: template.elements.map(el => ({
+            ...el,
+            value: el.type === 'MultiLanguageProperty' ? {} : '',
           })),
         });
+        handleClose();
+      } catch (err: unknown) {
+        setCatalogError(`Impossibile caricare il template: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setAdding(false);
       }
-    } else if (tab === 'custom' && custom.idShort.trim()) {
+      return;
+    }
+    if (tab === 'custom' && custom.idShort.trim()) {
       onAdd({
         id: `custom-${Date.now()}`,
         idShort: custom.idShort,
@@ -145,17 +348,17 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
         category: 'Custom',
         elements: [],
       });
+      handleClose();
     }
-    handleClose();
   };
 
   const sendChat = () => {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
-    setChatMessages((prev) => [...prev, { role: 'user', text: msg }]);
+    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
     setChatInput('');
     setTimeout(
-      () => setChatMessages((prev) => [...prev, { role: 'bot', text: getChatResponse(msg) }]),
+      () => setChatMessages(prev => [...prev, { role: 'bot', text: getChatResponse(msg) }]),
       500,
     );
   };
@@ -185,7 +388,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             Aggiungi Submodel
           </Typography>
           <Typography variant="caption" color="text.disabled" fontFamily="monospace">
-            Catalogo IDTA o custom
+            Catalogo IDTA · {catalog.length > 0 ? `${catalog.length} file trovati` : 'caricamento…'}
           </Typography>
         </Box>
         <Box flexGrow={1} />
@@ -194,7 +397,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
         </IconButton>
       </DialogTitle>
 
-      {/* ── Body: left panel + chatbot ── */}
+      {/* ── Body ── */}
       <DialogContent sx={{ display: 'flex', p: 0, overflow: 'hidden' }}>
         {/* ── LEFT ── */}
         <Box
@@ -207,7 +410,6 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             overflow: 'hidden',
           }}
         >
-          {/* Tabs */}
           <Tabs
             value={tab}
             onChange={(_, v) => setTab(v)}
@@ -219,26 +421,45 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
 
           {tab === 'catalog' ? (
             <>
-              {/* Search + category chips */}
-              <Stack direction="row" spacing={1} flexWrap="wrap" p={1.5} alignItems="center">
-                <TextField
-                  size="small"
-                  placeholder="Cerca idShort, semanticId…"
-                  value={search}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-                  sx={{ flex: 1, minWidth: 200 }}
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
+              {/* Search + toggle chips */}
+              <Stack spacing={1} p={1.5}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
+                    size="small"
+                    placeholder="Cerca nome, codice IDTA, versione…"
+                    value={search}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                    sx={{ flex: 1 }}
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <Chip
+                    label="Solo Template"
+                    size="small"
+                    clickable
+                    variant={onlyTemplates ? 'filled' : 'outlined'}
+                    color={onlyTemplates ? 'primary' : 'default'}
+                    onClick={() => setOnlyTemplates(p => !p)}
+                  />
+                  <Chip
+                    label="AAS V3.1"
+                    size="small"
+                    clickable
+                    variant={showV31 ? 'filled' : 'outlined'}
+                    color={showV31 ? 'secondary' : 'default'}
+                    onClick={() => setShowV31(p => !p)}
+                  />
+                </Stack>
+                {/* Category chips */}
                 <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                  {categories.map((c) => (
+                  {categories.map(c => (
                     <Chip
                       key={c}
                       label={c}
@@ -252,49 +473,87 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                 </Stack>
               </Stack>
 
-              {/* Catalog list */}
+              {/* List */}
               <Box flex={1} overflow="auto" px={2} pb={2}>
-                {filtered.map((sm) => (
+                {catalogLoading && (
+                  <Stack alignItems="center" justifyContent="center" height="100%" spacing={1.5}>
+                    <CircularProgress size={32} />
+                    <Typography variant="caption" color="text.secondary">
+                      Caricamento catalogo IDTA da GitHub…
+                    </Typography>
+                  </Stack>
+                )}
+
+                {catalogError && !catalogLoading && (
+                  <Stack alignItems="center" justifyContent="center" height="100%" spacing={1}>
+                    <ErrorOutlineRounded color="error" />
+                    <Typography variant="caption" color="error" textAlign="center">
+                      {catalogError}
+                    </Typography>
+                  </Stack>
+                )}
+
+                {!catalogLoading && !catalogError && filtered.map(entry => (
                   <Paper
-                    key={sm.id}
+                    key={entry.id}
                     variant="outlined"
-                    onClick={() => setSelected(sm.id)}
+                    onClick={() => setSelected(entry.id)}
                     sx={{
                       p: 1.75,
                       mb: 0.75,
                       cursor: 'pointer',
-                      borderColor: selected === sm.id ? 'primary.main' : 'divider',
-                      bgcolor: selected === sm.id ? 'action.selected' : 'background.paper',
+                      borderColor: selected === entry.id ? 'primary.main' : 'divider',
+                      bgcolor: selected === entry.id ? 'action.selected' : 'background.paper',
                       '&:hover': { borderColor: 'primary.light' },
                     }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="subtitle2">{sm.idShort}</Typography>
+                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                        <Typography variant="subtitle2">{entry.name}</Typography>
                         <Chip
-                          label={sm.category}
+                          label={`v${entry.version}`}
                           size="small"
                           color="primary"
                           variant="outlined"
                           sx={{ fontFamily: 'monospace', fontSize: 9 }}
                         />
+                        {entry.isV31 && (
+                          <Chip
+                            label="V3.1"
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                            sx={{ fontFamily: 'monospace', fontSize: 9 }}
+                          />
+                        )}
+                        {entry.fileType !== 'Template' && (
+                          <Chip
+                            label={entry.fileType}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: 9 }}
+                          />
+                        )}
                       </Stack>
-                      {selected === sm.id && <CheckRounded color="primary" fontSize="small" />}
+                      {selected === entry.id && <CheckRounded color="primary" fontSize="small" />}
                     </Stack>
-                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                      {sm.description}
-                    </Typography>
                     <Typography
                       variant="caption"
                       color="text.disabled"
                       display="block"
-                      mt={0.75}
+                      mt={0.5}
                       fontFamily="monospace"
                     >
-                      {sm.semanticId}
+                      {entry.idtaCode && `${entry.idtaCode} · `}{entry.category}
                     </Typography>
                   </Paper>
                 ))}
+
+                {!catalogLoading && !catalogError && filtered.length === 0 && catalog.length > 0 && (
+                  <Typography variant="body2" color="text.secondary" textAlign="center" mt={4}>
+                    Nessun risultato. Prova a modificare i filtri o la ricerca.
+                  </Typography>
+                )}
               </Box>
             </>
           ) : (
@@ -305,7 +564,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                 fullWidth
                 value={custom.idShort}
                 placeholder="MyCustomSubmodel"
-                onChange={(e) => setCustom((p) => ({ ...p, idShort: e.target.value }))}
+                onChange={e => setCustom(p => ({ ...p, idShort: e.target.value }))}
                 slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
               />
               <TextField
@@ -314,7 +573,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                 fullWidth
                 value={custom.semanticId}
                 placeholder="urn:org:submodel:Name:1:0"
-                onChange={(e) => setCustom((p) => ({ ...p, semanticId: e.target.value }))}
+                onChange={e => setCustom(p => ({ ...p, semanticId: e.target.value }))}
                 slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
               />
               <TextField
@@ -324,12 +583,12 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                 multiline
                 rows={3}
                 value={custom.description}
-                onChange={(e) => setCustom((p) => ({ ...p, description: e.target.value }))}
+                onChange={e => setCustom(p => ({ ...p, description: e.target.value }))}
               />
             </Stack>
           )}
 
-          {/* Action footer */}
+          {/* Footer */}
           <Stack
             direction="row"
             justifyContent="flex-end"
@@ -340,11 +599,13 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             <Button onClick={handleClose}>Annulla</Button>
             <Button
               variant="contained"
-              disabled={!canAdd}
-              startIcon={<AddRounded />}
+              disabled={!canAdd || adding}
+              startIcon={
+                adding ? <CircularProgress size={14} color="inherit" /> : <AddRounded />
+              }
               onClick={handleAdd}
             >
-              Aggiungi
+              {adding ? 'Caricamento…' : 'Aggiungi'}
             </Button>
           </Stack>
         </Box>
@@ -360,7 +621,6 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             flexShrink: 0,
           }}
         >
-          {/* Chatbot header */}
           <Stack
             direction="row"
             spacing={1}
@@ -381,7 +641,6 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             </Box>
           </Stack>
 
-          {/* Messages */}
           <Box flex={1} overflow="auto" p={1.75} display="flex" flexDirection="column" gap={1}>
             {chatMessages.map((m, i) => (
               <Box
@@ -395,7 +654,8 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                     p: 1.25,
                     bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
                     color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
-                    borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    borderRadius:
+                      m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
                   }}
                   elevation={0}
                 >
@@ -407,7 +667,6 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             ))}
           </Box>
 
-          {/* Chat input */}
           <Stack
             direction="row"
             spacing={0.75}
