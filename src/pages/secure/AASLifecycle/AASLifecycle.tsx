@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Avatar,
   Box,
@@ -23,9 +23,10 @@ import {
   ScheduleRounded,
 } from '@mui/icons-material';
 
-import { useAASContext, MOCK_AAS_DB } from '@/context/AASContext';
+import { useAASContext } from '@/context/AASContext';
 import { useDialogContext } from '@/context/DialogContext';
-import type { VersionStatus, ChangeType } from '@/context/AASContext';
+import { useAASVersioning } from '@/hooks/useAASVersioning';
+import type { VersionStatus, ChangeType, AASVersion } from '@/context/AASContext';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,9 +65,49 @@ const changeIconEl = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AASLifecycle() {
-  const { selectedModelId, setSelectedModelId } = useAASContext();
+  const { selectedModelId, setSelectedModelId, availableModels } = useAASContext();
   const { setHandlers } = useDialogContext();
-  const currentModel = MOCK_AAS_DB.find(m => m.id === selectedModelId) || MOCK_AAS_DB[0];
+  const { getLog } = useAASVersioning();
+
+  const currentModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
+
+  // Full version history from DB (if document is persisted)
+  const [dbVersions, setDbVersions] = useState<AASVersion[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
+
+  useEffect(() => {
+    if (!currentModel?.documentId) {
+      setDbVersions([]);
+      return;
+    }
+    setLogLoading(true);
+    getLog(currentModel.documentId)
+      .then(res => {
+        const commits = res.data?.commits ?? [];
+        setDbVersions(commits.map((c: any) => ({
+          version: c.version,
+          revision: c.revision,
+          date: c.createdAt,
+          status: c.status as VersionStatus,
+          author: c.author ? `${c.author.user?.name ?? ''} ${c.author.user?.surname ?? ''}`.trim() : '',
+          changes: c.message,
+          details: (c.diffs ?? []).map((d: any) => ({
+            type: d.change_type as ChangeType,
+            target: d.target,
+            name: d.name,
+            desc: d.description ?? '',
+          })),
+        })));
+      })
+      .catch(() => setDbVersions([]))
+      .finally(() => setLogLoading(false));
+  }, [currentModel?.documentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Use DB history when available, fall back to local versions
+  const versions = useMemo(
+    () => (dbVersions.length > 0 ? dbVersions : currentModel?.versions ?? []),
+    [dbVersions, currentModel]
+  );
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set([0]));
 
@@ -78,11 +119,11 @@ export default function AASLifecycle() {
     });
   };
 
-  const allChanges = currentModel.versions.flatMap(v => v.details || []);
+  const allChanges = versions.flatMap(v => v.details || []);
 
   const exportChangelog = useCallback(() => {
     const lines: string[] = [`# Changelog — ${currentModel.idShort}`, `assetId: ${currentModel.assetId}`, ''];
-    currentModel.versions.forEach(v => {
+    versions.forEach(v => {
       lines.push(`## v${v.version} rev ${v.revision} (${v.status}) — ${new Date(v.date).toLocaleDateString('it-IT')}`);
       lines.push(`*${v.author}*`);
       lines.push('');
@@ -108,7 +149,7 @@ export default function AASLifecycle() {
     return () => setHandlers({});
   }, [exportChangelog, setHandlers]);
 
-  const latestVersion = currentModel.versions[0];
+  const latestVersion = versions[0] ?? currentModel?.versions[0];
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -126,7 +167,7 @@ export default function AASLifecycle() {
             onChange={(e) => setSelectedModelId(e.target.value)}
             sx={{ fontFamily: 'monospace', fontSize: 11 }}
           >
-            {MOCK_AAS_DB.map(m => (
+            {availableModels.map(m => (
               <MenuItem key={m.id} value={m.id} sx={{ fontFamily: 'monospace', fontSize: 11 }}>
                 {m.idShort.replace('AAS_', '')}
               </MenuItem>
@@ -182,7 +223,7 @@ export default function AASLifecycle() {
           {/* ── Stats ── */}
           <Stack direction="row" spacing={1.5} flexWrap="wrap" mb={3.5}>
             {([
-              ['Versioni', currentModel.versions.length, 'primary.main'],
+              ['Versioni', versions.length, 'primary.main'],
               ['Aggiunte', allChanges.filter(d => d.type === 'added').length, 'success.main'],
               ['Modifiche', allChanges.filter(d => d.type === 'modified').length, 'warning.main'],
               ['Rimozioni', allChanges.filter(d => d.type === 'removed').length, 'error.main'],
@@ -203,7 +244,12 @@ export default function AASLifecycle() {
             {/* Vertical line */}
             <Box sx={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 2, bgcolor: 'divider' }} />
 
-            {currentModel.versions.map((v, idx) => {
+            {logLoading && (
+              <Typography variant="caption" color="text.disabled" fontFamily="monospace" display="block" mb={2}>
+                Caricamento storico dal server…
+              </Typography>
+            )}
+            {versions.map((v, idx) => {
               const isOpen = expanded.has(idx);
               return (
                 <Box key={idx} sx={{ position: 'relative', mb: isOpen ? 3 : 1.5 }}>

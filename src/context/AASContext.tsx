@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useApiWrapper } from '@/api/apiWrapper';
 
 // ═══════════════════════════════════
 // TYPES
@@ -214,102 +215,44 @@ export const SM_CATALOG: SubmodelTemplate[] = [
 ];
 
 // ═══════════════════════════════════
-// MOCK DATABASE
+// API → MODEL MAPPER
 // ═══════════════════════════════════
 
-export const MOCK_AAS_DB: AASModel[] = [
-  {
-    id: 'aas-pump-001',
-    idShort: 'AAS_CentrifugalPump_CP200',
-    assetId: 'urn:mfr:siemens:pump:cp200:sn-44821',
-    description: 'Digital twin — Centrifugal Pump CP200 Line',
-    assetKind: 'Instance',
-    versions: [
-      {
-        version: '3.0.0', revision: 'A', date: '2026-03-10T14:22:00Z', status: 'Draft',
-        author: 'M. Pistone',
-        changes: 'Aggiunto submodel PredictiveMaintenance con semanticId ECLASS',
-        details: [
-          { type: 'added', target: 'Submodel', name: 'PredictiveMaintenance', desc: 'Nuovo submodel manutenzione predittiva con HealthIndex e RUL' },
-          { type: 'added', target: 'Property', name: 'PredictiveMaintenance.HealthIndex', desc: 'Indice salute asset (0-100)' },
-          { type: 'added', target: 'Property', name: 'PredictiveMaintenance.RemainingUsefulLife', desc: 'Vita utile residua in ore' },
-          { type: 'added', target: 'Collection', name: 'PredictiveMaintenance.MaintenanceSchedule', desc: 'Scheduling manutenzione' },
-        ],
-      },
-    ],
-    submodels: [
-      { ...SM_CATALOG[0], id: `${SM_CATALOG[0].semanticId}:inst:aas-pump-001`, elements: SM_CATALOG[0].elements.map(e => ({ ...e, value: e.type === 'MultiLanguageProperty' ? {} : '' })) },
-      { ...SM_CATALOG[2], id: `${SM_CATALOG[2].semanticId}:inst:aas-pump-001`, elements: SM_CATALOG[2].elements.map(e => ({ ...e, value: '' })) },
-    ],
-  },
-  {
-    id: 'aas-robot-002',
-    idShort: 'AAS_IndustrialRobot_KR60',
-    assetId: 'urn:mfr:kuka:robot:kr60:sn-88412',
-    description: 'Digital twin — KUKA KR 60 HA',
-    assetKind: 'Instance',
-    versions: [
-      {
-        version: '1.2.0', revision: 'A', date: '2026-03-01T10:00:00Z', status: 'Active',
-        author: 'L. Ferrara',
-        changes: 'Aggiunto OperationalData submodel',
-        details: [
-          { type: 'added', target: 'Submodel', name: 'OperationalData', desc: 'Dati operativi real-time' },
-          { type: 'added', target: 'Property', name: 'OperationalData.OperatingHours', desc: 'Ore di funzionamento' },
-        ],
-      },
-    ],
-    submodels: [
-      { ...SM_CATALOG[0], id: `${SM_CATALOG[0].semanticId}:inst:aas-robot-002`, elements: SM_CATALOG[0].elements.map(e => ({ ...e, value: e.type === 'MultiLanguageProperty' ? {} : '' })) },
-      { ...SM_CATALOG[4], id: `${SM_CATALOG[4].semanticId}:inst:aas-robot-002`, elements: SM_CATALOG[4].elements.map(e => ({ ...e, value: '' })) },
-    ],
-  },
-  {
-    id: 'aas-sensor-003',
-    idShort: 'AAS_TempSensor_TS400',
-    assetId: 'urn:mfr:bosch:sensor:ts400:sn-12093',
-    description: 'Digital twin — Bosch TS400 Temperature Sensor',
-    assetKind: 'Instance',
-    versions: [
-      {
-        version: '2.0.0', revision: 'A', date: '2026-02-28T15:20:00Z', status: 'Active',
-        author: 'M. Pistone',
-        changes: 'Migrazione a AAS v3 metamodel',
-        details: [
-          { type: 'modified', target: 'Submodel', name: 'Nameplate', desc: 'Migrato a schema AAS v3' },
-          { type: 'modified', target: 'Submodel', name: 'TechnicalData', desc: 'Allineato a IDTA template v1.2' },
-        ],
-      },
-    ],
-    submodels: [
-      { ...SM_CATALOG[0], id: `${SM_CATALOG[0].semanticId}:inst:aas-sensor-003`, elements: SM_CATALOG[0].elements.map(e => ({ ...e, value: e.type === 'MultiLanguageProperty' ? {} : '' })) },
-      { ...SM_CATALOG[2], id: `${SM_CATALOG[2].semanticId}:inst:aas-sensor-003`, elements: SM_CATALOG[2].elements.map(e => ({ ...e, value: '' })) },
-    ],
-  },
-  {
-    id: 'aas-conveyor-004',
-    idShort: 'AAS_ConveyorBelt_CB100',
-    assetId: 'urn:mfr:festo:conveyor:cb100:sn-55110',
-    description: 'Digital twin — Festo CB100 Conveyor Belt',
-    assetKind: 'Type',
-    versions: [
-      {
-        version: '1.0.0', revision: 'A', date: '2026-03-05T11:10:00Z', status: 'Draft',
-        author: 'A. Rossi',
-        changes: 'Modello type iniziale',
-        details: [
-          { type: 'added', target: 'Submodel', name: 'Nameplate', desc: 'Nameplate Festo' },
-          { type: 'added', target: 'Submodel', name: 'TechnicalData', desc: 'Specifiche tecniche nastro' },
-          { type: 'added', target: 'Submodel', name: 'BillOfMaterial', desc: 'BOM componenti nastro' },
-        ],
-      },
-    ],
-    submodels: [
-      { ...SM_CATALOG[0], id: `${SM_CATALOG[0].semanticId}:inst:aas-conveyor-004`, elements: SM_CATALOG[0].elements.map(e => ({ ...e, value: e.type === 'MultiLanguageProperty' ? {} : '' })) },
-      { ...SM_CATALOG[7], id: `${SM_CATALOG[7].semanticId}:inst:aas-conveyor-004`, elements: SM_CATALOG[7].elements.map(e => ({ ...e, value: '' })) },
-    ],
-  },
-];
+export function mapDocumentToModel(doc: any, submodels: SubmodelTemplate[] = []): AASModel {
+  const head = doc.head;
+  return {
+    id: doc.aas_id,
+    documentId: doc.document_id,
+    idShort: doc.id_short,
+    assetId: doc.asset_id,
+    description: doc.description || '',
+    assetKind: doc.asset_kind as AssetKind,
+    versions: head ? [{
+      version: head.version,
+      revision: head.revision,
+      date: head.createdAt,
+      status: head.status as VersionStatus,
+      author: head.author
+        ? `${head.author.user?.name ?? ''} ${head.author.user?.surname ?? ''}`.trim()
+        : '',
+      changes: head.message,
+      details: (head.diffs ?? []).map((d: any) => ({
+        type: d.change_type as ChangeType,
+        target: d.target,
+        name: d.name,
+        desc: d.description ?? '',
+      })),
+    }] : [],
+    submodels,
+  };
+}
+
+// kept for legacy reference only — removed from runtime use
+// (was: MOCK_AAS_DB — now seeded via aas-studio-api/scripts/seed-mock-data.js)
+
+// placeholder so the old export still type-checks if referenced elsewhere
+export const MOCK_AAS_DB: AASModel[] = [];
+
 
 // ═══════════════════════════════════
 // VALIDATION ENGINE
@@ -392,30 +335,75 @@ interface AASContextType {
   availableModels: AASModel[];
   currentModel: AASModel;
   currentVersion: AASVersion;
+  loading: boolean;
   createModel: (data: { idShort: string; assetId: string; description: string; assetKind: AssetKind }) => void;
   updateCurrentModel: (patch: Partial<AASModel>) => void;
+  updateVersionStatus: (status: VersionStatus) => void;
   addSubmodel: (sm: SubmodelTemplate) => void;
   removeSubmodel: (id: string) => void;
   updateSubmodel: (smId: string, patch: Partial<SubmodelTemplate>) => void;
   updateElement: (smId: string, elIdx: number, field: string, value: string | Record<string, string>) => void;
   importAas: (model: AASModel) => void;
-  setSubmodels: (sms: SubmodelTemplate[]) => void; // Added back for VersionHistory compatibility
+  setSubmodels: (sms: SubmodelTemplate[]) => void;
+  refreshModels: () => Promise<void>;
 }
 
 const AASContext = createContext<AASContextType | null>(null);
 
 export function AASProvider({ children }: { children: ReactNode }) {
+  const api = useApiWrapper();
+
+  const [loading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<AASModel[]>(() => {
     const saved = localStorage.getItem('aas_studio_models');
-    return saved ? JSON.parse(saved) : MOCK_AAS_DB;
+    return saved ? JSON.parse(saved) : [];
   });
-  
-  const [selectedModelId, setSelectedModelId] = useState(availableModels[0]?.id || '');
+  const [selectedModelId, setSelectedModelId] = useState(() => {
+    const saved = localStorage.getItem('aas_studio_models');
+    const models: AASModel[] = saved ? JSON.parse(saved) : [];
+    return models[0]?.id || '';
+  });
 
-  // Persistence to localStorage
+  // ── Write-through localStorage cache ──────────────────────────────────────
   useEffect(() => {
-    localStorage.setItem('aas_studio_models', JSON.stringify(availableModels));
-  }, [availableModels]);
+    if (!loading) {
+      localStorage.setItem('aas_studio_models', JSON.stringify(availableModels));
+    }
+  }, [availableModels, loading]);
+
+  // ── Load from API ──────────────────────────────────────────────────────────
+  const refreshModels = useCallback(async () => {
+    setLoading(true);
+    try {
+      const listRes = await api.get<{ total: number; documents: any[] }>('/v1/aas');
+      const documents: any[] = listRes.data?.documents ?? [];
+
+      const models = await Promise.all(
+        documents.map(async (doc) => {
+          let submodels: SubmodelTemplate[] = [];
+          try {
+            const ckRes = await api.get<{ content: { submodels?: SubmodelTemplate[] } | null }>(
+              `/v1/aas/${doc.document_id}/checkout`
+            );
+            submodels = ckRes.data?.content?.submodels ?? [];
+          } catch { /* snapshot missing — show empty submodels */ }
+          return mapDocumentToModel(doc, submodels);
+        })
+      );
+
+      setAvailableModels(models);
+      if (models.length > 0) {
+        setSelectedModelId(prev => models.find(m => m.id === prev) ? prev : models[0].id);
+      }
+      localStorage.setItem('aas_studio_models', JSON.stringify(models));
+    } catch {
+      // API unreachable — keep whatever is in localStorage (already in state)
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => { refreshModels(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
   
@@ -483,6 +471,34 @@ export function AASProvider({ children }: { children: ReactNode }) {
     }));
   }, [selectedModelId]);
 
+  const updateVersionStatus = useCallback((status: VersionStatus) => {
+    // 1. Aggiorna subito localStorage/stato locale
+    setAvailableModels(prev => prev.map(m => {
+      if (m.id !== selectedModelId) return m;
+      const versions = [...m.versions];
+      versions[0] = { ...versions[0], status, date: new Date().toISOString() };
+      return { ...m, versions };
+    }));
+
+    // 2. Se il modello è collegato al DB, sincronizza lo stato del commit HEAD
+    const model = availableModels.find(m => m.id === selectedModelId);
+    if (model?.documentId) {
+      (async () => {
+        try {
+          const docRes = await api.get<{ document: any; head: { commit_id: number } | null; refs: any[] }>(
+            `/v1/aas/${model.documentId}`
+          );
+          const headCommitId = docRes.data?.head?.commit_id;
+          if (headCommitId) {
+            await api.put(`/v1/aas/${model.documentId}/commits/${headCommitId}/status`, { status });
+          }
+        } catch {
+          // Fallback silenzioso — lo stato è già salvato in localStorage
+        }
+      })();
+    }
+  }, [selectedModelId, availableModels, api]);
+
   const importAas = useCallback((model: AASModel) => {
     const imported = { ...model, isImported: true };
     setAvailableModels(prev => {
@@ -501,14 +517,17 @@ export function AASProvider({ children }: { children: ReactNode }) {
         availableModels,
         currentModel,
         currentVersion,
+        loading,
         createModel,
         updateCurrentModel,
+        updateVersionStatus,
         addSubmodel,
         removeSubmodel,
         updateSubmodel,
         updateElement,
         importAas,
         setSubmodels,
+        refreshModels,
       }}
     >
       {children}

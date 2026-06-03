@@ -7,6 +7,9 @@ import {
   FormControl,
   FormLabel,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
   Paper,
   Select,
@@ -14,11 +17,13 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import {
   AccountTreeRounded,
   AddRounded,
+  CheckCircleRounded,
   CheckRounded,
   CloseRounded,
   DeleteRounded,
@@ -30,6 +35,9 @@ import {
   FormatListBulletedRounded,
   HistoryRounded,
   WarningAmberRounded,
+  EditNoteRounded,
+  ArchiveRounded,
+  ArrowDropDownRounded,
 } from '@mui/icons-material';
 
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
@@ -37,6 +45,8 @@ import GraphView from './components/GraphView';
 
 import { useAASContext, XsdValueType, AASModel, validateAAS, ValidationResult } from '@/context/AASContext';
 import { useDialogContext } from '@/context/DialogContext';
+import { useAASVersioning } from '@/hooks/useAASVersioning';
+import { useCustomSnackbar } from '@/context/SnackbarContext';
 
 import ValidationDialog from './dialogs/ValidationDialog';
 import AddSubmodelDialog from './dialogs/AddSubmodelDialog';
@@ -59,6 +69,7 @@ export default function AASEditor() {
     currentModel, currentVersion,
     createModel,
     updateCurrentModel,
+    updateVersionStatus,
     addSubmodel, removeSubmodel, updateSubmodel, updateElement,
     importAas, setSubmodels
   } = useAASContext();
@@ -66,8 +77,12 @@ export default function AASEditor() {
   const { submodels, idShort: aasIdShort, assetId: aasAssetId, description: aasDescription } = currentModel;
 
   const { setHandlers } = useDialogContext();
+  const { createDocument, commitSubmodel } = useAASVersioning();
+  const { showSnackbar } = useCustomSnackbar();
 
   const [editorView, setEditorView] = useState<EditorView>('list');
+  const [statusMenuAnchor, setStatusMenuAnchor] = useState<null | HTMLElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [expandedSubmodels, setExpandedSubmodels] = useState<Set<string>>(new Set([submodels[0]?.id]));
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -127,6 +142,43 @@ export default function AASEditor() {
     return () => setHandlers({});
   }, [setHandlers, handleExport, handleValidateInline]);
 
+  const handleSaveToServer = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const content = { submodels, idShort: aasIdShort, assetId: aasAssetId, description: aasDescription };
+
+      if (!currentModel.documentId) {
+        // Prima volta: crea il documento sul DB
+        const res = await createDocument({
+          id_short: aasIdShort,
+          aas_id: currentModel.id,
+          asset_id: aasAssetId,
+          asset_kind: currentModel.assetKind,
+          description: aasDescription,
+          message: 'Initial commit',
+          content,
+        });
+        const docId = res.data?.document?.document_id;
+        if (docId) {
+          updateCurrentModel({ documentId: docId });
+          showSnackbar('AAS salvato sul server', 'success');
+        }
+      } else {
+        // Commit successivo
+        await commitSubmodel(currentModel.documentId, {
+          message: `Update ${aasIdShort} — ${new Date().toLocaleString('it-IT')}`,
+          content,
+          status: currentVersion.status as any,
+        });
+        showSnackbar('Commit salvato sul server', 'success');
+      }
+    } catch {
+      showSnackbar('Errore durante il salvataggio sul server', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [aasIdShort, aasAssetId, aasDescription, submodels, currentModel, currentVersion, createDocument, commitSubmodel, updateCurrentModel, showSnackbar]);
+
   const toggleSubmodel = (id: string) => {
     setExpandedSubmodels(prev => {
       const next = new Set(prev);
@@ -163,12 +215,55 @@ export default function AASEditor() {
           </Select>
         </FormControl>
 
-        <Chip
-          size="small"
-          label={`${currentVersion.status} v${currentVersion.version}`}
-          color={currentVersion.status === 'Active' ? 'success' : currentVersion.status === 'Draft' ? 'warning' : 'default'}
-          variant="outlined"
-        />
+        <Tooltip title="Clicca per cambiare stato" arrow>
+          <Chip
+            size="small"
+            label={
+              <Stack direction="row" alignItems="center" spacing={0.4}>
+                <span>{currentVersion.status} v{currentVersion.version}</span>
+                <ArrowDropDownRounded sx={{ fontSize: 16, ml: -0.25 }} />
+              </Stack>
+            }
+            color={currentVersion.status === 'Active' ? 'success' : currentVersion.status === 'Draft' ? 'warning' : 'default'}
+            variant="outlined"
+            onClick={(e) => setStatusMenuAnchor(e.currentTarget)}
+            sx={{ cursor: 'pointer', pr: 0.5 }}
+          />
+        </Tooltip>
+        <Menu
+          anchorEl={statusMenuAnchor}
+          open={Boolean(statusMenuAnchor)}
+          onClose={() => setStatusMenuAnchor(null)}
+          transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+          slotProps={{ paper: { sx: { minWidth: 220, mt: 0.5 } } }}
+        >
+          <Box sx={{ px: 2, pt: 1.25, pb: 0.75 }}>
+            <Typography variant="caption" color="text.disabled" fontWeight={700} textTransform="uppercase" letterSpacing={0.6}>
+              Cambia stato versione
+            </Typography>
+          </Box>
+          {([
+            { status: 'Draft',      icon: <EditNoteRounded fontSize="small" />,      color: 'warning.main', desc: 'In lavorazione, modificabile' },
+            { status: 'Active',     icon: <CheckCircleRounded fontSize="small" />,   color: 'success.main', desc: 'Approvato e in uso operativo' },
+            { status: 'Deprecated', icon: <ArchiveRounded fontSize="small" />,       color: 'text.disabled', desc: 'Sorpassato da versione più recente' },
+          ] as const).map(({ status, icon, color, desc }) => (
+            <MenuItem
+              key={status}
+              selected={currentVersion.status === status}
+              onClick={() => { updateVersionStatus(status); setStatusMenuAnchor(null); }}
+              sx={{ borderRadius: 1, mx: 0.5, mb: 0.25 }}
+            >
+              <ListItemIcon sx={{ color }}>{icon}</ListItemIcon>
+              <ListItemText
+                primary={status}
+                secondary={desc}
+                primaryTypographyProps={{ fontWeight: 700, fontSize: 13 }}
+                secondaryTypographyProps={{ fontSize: 11 }}
+              />
+            </MenuItem>
+          ))}
+        </Menu>
 
         <Box flexGrow={1} />
 
@@ -208,17 +303,17 @@ export default function AASEditor() {
           Export AASX
         </Button>
 
-        {currentModel.isImported && (
-          <Button
-            variant="contained"
-            color="info"
-            size="small"
-            startIcon={<CloudUploadRounded />}
-            onClick={() => alert('Salvataggio sul server in corso... (Funzionalità API non ancora implementata)')}
-          >
-            Save to Server
-          </Button>
-        )}
+        <Button
+          variant={currentModel.documentId ? 'outlined' : 'contained'}
+          color="info"
+          size="small"
+          startIcon={isSaving ? undefined : <CloudUploadRounded />}
+          onClick={handleSaveToServer}
+          disabled={isSaving}
+          sx={{ minWidth: 130 }}
+        >
+          {isSaving ? 'Salvataggio…' : currentModel.documentId ? 'Commit al server' : 'Save to Server'}
+        </Button>
 
         <Button
           variant={showHistory ? 'contained' : 'outlined'}
