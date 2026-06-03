@@ -25,11 +25,18 @@ const Card = styled(MuiCard)(({ theme }: { theme: any }) => ({
   [theme.breakpoints.up('sm')]: {
     maxWidth: '450px',
   },
-  boxShadow:
-    'hsla(220, 30%, 5%, 0.05) 0px 5px 15px 0px, hsla(220, 25%, 10%, 0.05) 0px 15px 35px -5px',
+  borderRadius: 20,
+  border: '1.5px solid transparent',
+  backgroundImage: 'linear-gradient(hsl(0, 0%, 100%), hsl(0, 0%, 100%)), linear-gradient(135deg, hsl(210, 98%, 75%), hsl(265, 75%, 70%))',
+  backgroundOrigin: 'padding-box, border-box',
+  backgroundClip: 'padding-box, border-box',
+  backgroundColor: 'transparent',
+  boxShadow: 'hsla(210, 40%, 30%, 0.08) 0px 8px 32px 0px, hsla(210, 60%, 20%, 0.06) 0px 24px 56px -8px',
   ...theme.applyStyles('dark', {
-    boxShadow:
-      'hsla(220, 30%, 5%, 0.5) 0px 5px 15px 0px, hsla(220, 25%, 10%, 0.08) 0px 15px 35px -5px',
+    backgroundImage: 'linear-gradient(hsl(220, 30%, 9%), hsl(220, 30%, 9%)), linear-gradient(135deg, hsl(210, 70%, 40%), hsl(265, 55%, 45%))',
+    backgroundOrigin: 'padding-box, border-box',
+    backgroundClip: 'padding-box, border-box',
+    boxShadow: 'hsla(220, 30%, 5%, 0.7) 0px 8px 32px 0px, hsla(210, 60%, 20%, 0.4) 0px 24px 56px -8px',
   }),
 }));
 
@@ -47,11 +54,11 @@ const SignInContainer = styled(Stack)(({ theme }: { theme: any }) => ({
     zIndex: -1,
     inset: 0,
     backgroundImage:
-      'radial-gradient(ellipse at 50% 50%, hsl(210, 100%, 97%), hsl(0, 0%, 100%))',
+      'radial-gradient(ellipse at 20% 30%, hsl(210, 100%, 93%) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, hsl(270, 80%, 93%) 0%, transparent 45%), hsl(0, 0%, 100%)',
     backgroundRepeat: 'no-repeat',
     ...theme.applyStyles('dark', {
       backgroundImage:
-        'radial-gradient(at 50% 50%, hsla(210, 100%, 16%, 0.5), hsl(220, 30%, 5%))',
+        'radial-gradient(ellipse at 15% 25%, hsla(210, 100%, 14%, 0.7) 0%, transparent 55%), radial-gradient(ellipse at 85% 75%, hsla(265, 60%, 12%, 0.6) 0%, transparent 50%), hsl(220, 35%, 3%)',
     }),
   },
 }));

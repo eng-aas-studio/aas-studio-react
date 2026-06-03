@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { Theme, alpha, Components, SvgIconProps, buttonBaseClasses, dividerClasses, menuItemClasses, selectClasses, tabClasses } from '@mui/material';
 import { UnfoldMoreRounded } from '@mui/icons-material';
-import { gray, brand } from '@/theme/themePrimitives';
+import { gray, brand, violet } from '@/theme/themePrimitives';
 
 /* eslint-disable import/prefer-default-export */
 export const navigationCustomizations: Components<Theme> = {
@@ -68,9 +68,53 @@ export const navigationCustomizations: Components<Theme> = {
       }),
     },
   },
+  MuiListItemButton: {
+    styleOverrides: {
+      root: ({ theme }: { theme: any }) => ({
+        borderRadius: 10,
+        margin: '2px 6px',
+        position: 'relative',
+        transition: 'background 180ms ease, color 180ms ease',
+        '&.Mui-selected': {
+          backgroundImage: `linear-gradient(135deg, ${alpha(brand[400], 0.14)}, ${alpha(violet[400], 0.09)})`,
+          color: brand[600],
+          fontWeight: 600,
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            left: 0,
+            top: '18%',
+            bottom: '18%',
+            width: 3,
+            borderRadius: '0 4px 4px 0',
+            background: `linear-gradient(180deg, ${brand[400]}, ${violet[400]})`,
+          },
+          '&:hover': {
+            backgroundImage: `linear-gradient(135deg, ${alpha(brand[400], 0.2)}, ${alpha(violet[400], 0.14)})`,
+          },
+        },
+        ...theme.applyStyles('dark', {
+          '&.Mui-selected': {
+            backgroundImage: `linear-gradient(135deg, ${alpha(brand[400], 0.2)}, ${alpha(violet[400], 0.14)})`,
+            color: brand[300],
+            '&:hover': {
+              backgroundImage: `linear-gradient(135deg, ${alpha(brand[400], 0.28)}, ${alpha(violet[400], 0.2)})`,
+            },
+          },
+        }),
+      }),
+    },
+  },
   MuiDrawer: {
     styleOverrides: {
-      paper: ({ theme }: { theme: any }) => ({ backgroundColor: (theme.vars || theme).palette.background.default }),
+      paper: ({ theme }: { theme: any }) => ({
+        backgroundImage: `linear-gradient(180deg, hsl(220, 40%, 98%) 0%, hsl(220, 35%, 96%) 100%)`,
+        borderRight: `1px solid ${alpha(brand[300], 0.14)}`,
+        ...theme.applyStyles('dark', {
+          backgroundImage: `linear-gradient(180deg, hsl(222, 40%, 5%) 0%, hsl(220, 38%, 3.5%) 100%)`,
+          borderRight: `1px solid ${alpha(brand[400], 0.09)}`,
+        }),
+      }),
     },
   },
   MuiPaginationItem: {

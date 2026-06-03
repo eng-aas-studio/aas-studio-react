@@ -108,6 +108,19 @@ export const red = {
   900: 'hsl(0, 93%, 6%)',
 };
 
+export const violet = {
+  50: 'hsl(270, 100%, 98%)',
+  100: 'hsl(270, 100%, 95%)',
+  200: 'hsl(270, 90%, 88%)',
+  300: 'hsl(270, 80%, 75%)',
+  400: 'hsl(265, 75%, 62%)',
+  500: 'hsl(262, 72%, 55%)',
+  600: 'hsl(260, 70%, 48%)',
+  700: 'hsl(258, 75%, 38%)',
+  800: 'hsl(256, 80%, 28%)',
+  900: 'hsl(254, 85%, 18%)',
+};
+
 export const getDesignTokens = (mode: PaletteMode) => {
   customShadows[1] =
     mode === 'dark'
@@ -209,7 +222,7 @@ export const typography = {
   caption: { fontSize: defaultTheme.typography.pxToRem(12), fontWeight: 400 },
 };
 
-export const shape = { borderRadius: 8 };
+export const shape = { borderRadius: 10 };
 
 // @ts-ignore
 const defaultShadows: Shadows = [

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import { alpha } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
+import { brand, violet } from '@/theme/themePrimitives';
 
 import NavbarMobile from '@/pages/secure/Main/components/header/NavbarMobile';
 import Header from '@/pages/secure/Main/components/header/Header';
@@ -58,12 +59,35 @@ const Main = ({ children }: MainProps) => {
               flexGrow: 1,
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden', // Evita overflow orizzontale
-              width: '100%', // Assicura che il contenuto si adatti alla larghezza disponibile
+              overflow: 'hidden',
+              width: '100%',
+              position: 'relative',
               backgroundColor: (theme: any) =>
                 theme.vars
                   ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
                   : alpha(theme.palette.background.default, 1),
+              '&::before': {
+                content: '""',
+                position: 'fixed',
+                top: 0,
+                right: 0,
+                width: '55%',
+                height: '45%',
+                background: `radial-gradient(ellipse at 80% 10%, ${alpha(brand[300], 0.055)} 0%, transparent 65%)`,
+                pointerEvents: 'none',
+                zIndex: 0,
+              },
+              '&::after': {
+                content: '""',
+                position: 'fixed',
+                bottom: 0,
+                left: '15%',
+                width: '50%',
+                height: '40%',
+                background: `radial-gradient(ellipse at 30% 90%, ${alpha(violet[400], 0.04)} 0%, transparent 60%)`,
+                pointerEvents: 'none',
+                zIndex: 0,
+              },
             }}
           >
             {/* Header fisso */}
@@ -72,16 +96,21 @@ const Main = ({ children }: MainProps) => {
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                backgroundColor: (theme: any) =>
-                  theme.vars
-                    ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
-                    : alpha(theme.palette.background.default, 1),
-                width: '100%', // Assicura che l'header occupi tutta la larghezza
+                backgroundColor: theme.vars
+                  ? `rgba(${theme.vars.palette.background.defaultChannel} / 0.88)`
+                  : alpha(theme.palette.background.default, 0.88),
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                borderBottom: `1px solid ${alpha(brand[300], 0.1)}`,
+                width: '100%',
                 padding: '16px',
                 [theme.breakpoints.down('md')]: {
-                  pt: '64px', // Padding specifico per tablet
+                  pt: '64px',
                 },
-                boxSizing: 'border-box', // Assicura che il padding non causi overflow
+                boxSizing: 'border-box',
+                ...theme.applyStyles('dark', {
+                  borderBottom: `1px solid ${alpha(brand[400], 0.07)}`,
+                }),
               })}
             >
               <Header />
