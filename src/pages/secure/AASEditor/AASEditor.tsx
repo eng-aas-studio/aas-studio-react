@@ -74,6 +74,8 @@ export default function AASEditor() {
     importAas, setSubmodels
   } = useAASContext();
 
+  if (!currentModel) return null;
+
   const { submodels, idShort: aasIdShort, assetId: aasAssetId, description: aasDescription } = currentModel;
 
   const { setHandlers } = useDialogContext();
