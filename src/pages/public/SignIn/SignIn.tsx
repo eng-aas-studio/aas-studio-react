@@ -82,7 +82,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
   useEffect(() => {
     if (operator.auth_token) {
-      navigate('/editor', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [operator.auth_token, navigate]);
 
