@@ -1,1 +1,132 @@
-{}
+{
+  "common": {
+    "buttons": {
+      "cancel": "Annulla",
+      "close": "Chiudi",
+      "deleteAll": "Elimina tutto",
+      "edit": "Modifica"
+    },
+    "texts": {
+      "loading": "Caricamento",
+      "logout": "Esci",
+      "profile": "Profilo",
+      "rotation": "Rotazione",
+      "zoom": "Zoom"
+    },
+    "dialogs": {
+      "cropImage": {
+        "title": "Ritaglia immagine"
+      }
+    }
+  },
+  "header": {
+    "colorMode": {
+      "dark": "Scuro",
+      "light": "Chiaro",
+      "system": "Sistema"
+    },
+    "notifications": {
+      "empty": "Nessuna notifica"
+    },
+    "toolTips": {
+      "notifications": "Notifiche",
+      "theme": "Tema",
+      "translation": "Lingua"
+    }
+  },
+  "searchbar": {
+    "placeholder": "Cerca…"
+  },
+  "sideMenu": {
+    "toolTips": {
+      "collapseMenu": "Comprimi menu",
+      "expandMenu": "Espandi menu"
+    },
+    "menuContent": {
+      "dashboard": "Dashboard",
+      "editor": "Editor AAS",
+      "lifecycle": "Ciclo di vita",
+      "server": "Server",
+      "profile": "Profilo",
+      "calendar": "Calendario",
+      "aasEditor": "Editor AAS",
+      "aasLifecycle": "Ciclo di vita",
+      "aasServer": "Server",
+      "about": "Informazioni",
+      "feedback": "Feedback",
+      "validateAAS": "Valida AAS",
+      "addEntity": "Nuova entità",
+      "exportChangelog": "Esporta changelog",
+      "generateServer": "Genera server",
+      "downloadCode": "Scarica codice",
+      "settings": "Impostazioni",
+      "toolTips": {
+        "dashboard": "Dashboard",
+        "aasEditor": "Editor AAS",
+        "aasLifecycle": "Ciclo di vita AAS",
+        "aasServer": "Generatore di server",
+        "about": "Informazioni",
+        "feedback": "Feedback",
+        "validateAAS": "Valida AAS",
+        "addEntity": "Nuova entità AAS",
+        "exportChangelog": "Esporta changelog",
+        "generateServer": "Genera server",
+        "downloadCode": "Scarica codice",
+        "settings": "Impostazioni"
+      }
+    }
+  },
+  "main": {
+    "dialogs": {
+      "about": {
+        "title": "AAS Studio",
+        "subtitle": "Progetta, versiona e pubblica Asset Administration Shell",
+        "storyTitle": "La nostra storia",
+        "story1": "AAS Studio nasce per semplificare la creazione e la gestione dei Digital Twin secondo lo standard Industry 4.0.",
+        "story2": "Unisce un editor visuale del metamodello AAS 3.1 a un versioning in stile Git per shell e submodel.",
+        "story3": "L'obiettivo è portare progettazione, validazione e pubblicazione dei modelli AAS in un unico flusso di lavoro.",
+        "milestonesTitle": "Traguardi",
+        "milestone1Title": "Editor AAS 3.1",
+        "milestone1Desc": "Editing visuale di shell, submodel ed elementi conforme IDTA.",
+        "milestone2Title": "Versioning Git-like",
+        "milestone2Desc": "Commit, branch, diff e ripristino per ogni modello.",
+        "milestone3Title": "Connessione runtime",
+        "milestone3Desc": "Pull e gestione di server AAS live.",
+        "stat1": "Submodel IDTA",
+        "stat2": "Versioni tracciate",
+        "stat3": "Formati supportati"
+      },
+      "referrals": {
+        "title": "Invita e guadagna",
+        "closed": "completati",
+        "conditionsTitle": "Condizioni",
+        "condition1": "L'invito è valido per nuovi utenti registrati.",
+        "condition2": "Il premio viene erogato al completamento della registrazione.",
+        "condition3": "Gli inviti non sono cumulabili con altre promozioni.",
+        "confirmDelete": {
+          "title": "Eliminare l'invito?",
+          "message": "Questa azione non può essere annullata.",
+          "confirm": "Elimina"
+        },
+        "deleteReferral": "Elimina invito",
+        "emailInvalid": "Indirizzo email non valido",
+        "emailPlaceholder": "nome@azienda.com",
+        "heroTitle": "Invita i tuoi colleghi",
+        "heroDesc": "Condividi AAS Studio e ottieni vantaggi per ogni collega che si unisce.",
+        "howItWorksTitle": "Come funziona",
+        "inviteTitle": "Invia un invito",
+        "maxReached": "Hai raggiunto il numero massimo di inviti",
+        "myReferrals": "I miei inviti",
+        "noReferrals": "Nessun invito ancora inviato",
+        "note": "Riceverai una notifica quando un invito viene accettato.",
+        "sendBtn": "Invia invito",
+        "step1Title": "Invita",
+        "step1Desc": "Inserisci l'email del collega da invitare.",
+        "step2Title": "Registrazione",
+        "step2Desc": "Il collega completa la registrazione.",
+        "step3Title": "Premio",
+        "step3Desc": "Ricevi il tuo premio."
+      }
+    }
+  }
+}

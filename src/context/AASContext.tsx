@@ -347,7 +347,9 @@ interface AASContextType {
   updateElement: (smId: string, elIdx: number, field: string, value: string | Record<string, string>) => void;
   importAas: (model: AASModel) => void;
   setSubmodels: (sms: SubmodelTemplate[]) => void;
-  refreshModels: () => Promise<void>;
+  /** Reload from the server. Pass the id of a just-committed model so its
+   *  local working copy is replaced by the server snapshot (drops dirty). */
+  refreshModels: (committedId?: string) => Promise<void>;
   clearDirty: (id: string) => void;
 }
 
@@ -379,7 +381,7 @@ export function AASProvider({ children }: { children: ReactNode }) {
   }, [availableModels, loading]);
 
   // ── Load from API ──────────────────────────────────────────────────────────
-  const refreshModels = useCallback(async () => {
+  const refreshModels = useCallback(async (committedId?: string) => {
     setLoading(true);
     try {
       const listRes = await api.get<{ total: number; documents: any[] }>('/v1/aas');
@@ -405,7 +407,9 @@ export function AASProvider({ children }: { children: ReactNode }) {
       const prev = availableModelsRef.current;
       const serverById = new Map(serverModels.map(m => [m.id, m]));
       const preserved = prev
-        .filter(lm => lm.dirty || (!lm.documentId && !serverById.has(lm.id)))
+        // A just-committed model (committedId) is intentionally NOT preserved:
+        // adopt the server snapshot so it reflects the persisted state.
+        .filter(lm => lm.id !== committedId && (lm.dirty || (!lm.documentId && !serverById.has(lm.id))))
         .map(lm => {
           const s = serverById.get(lm.id);
           return s ? { ...lm, documentId: s.documentId, versions: s.versions } : lm;

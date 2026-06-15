@@ -1,1 +1,132 @@
-{}
+{
+  "common": {
+    "buttons": {
+      "cancel": "Cancel",
+      "close": "Close",
+      "deleteAll": "Delete all",
+      "edit": "Edit"
+    },
+    "texts": {
+      "loading": "Loading",
+      "logout": "Logout",
+      "profile": "Profile",
+      "rotation": "Rotation",
+      "zoom": "Zoom"
+    },
+    "dialogs": {
+      "cropImage": {
+        "title": "Crop image"
+      }
+    }
+  },
+  "header": {
+    "colorMode": {
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "notifications": {
+      "empty": "No notifications"
+    },
+    "toolTips": {
+      "notifications": "Notifications",
+      "theme": "Theme",
+      "translation": "Language"
+    }
+  },
+  "searchbar": {
+    "placeholder": "Search…"
+  },
+  "sideMenu": {
+    "toolTips": {
+      "collapseMenu": "Collapse menu",
+      "expandMenu": "Expand menu"
+    },
+    "menuContent": {
+      "dashboard": "Dashboard",
+      "editor": "AAS Editor",
+      "lifecycle": "Lifecycle",
+      "server": "Server",
+      "profile": "Profile",
+      "calendar": "Calendar",
+      "aasEditor": "AAS Editor",
+      "aasLifecycle": "Lifecycle",
+      "aasServer": "Server",
+      "about": "About",
+      "feedback": "Feedback",
+      "validateAAS": "Validate AAS",
+      "addEntity": "New Entity",
+      "exportChangelog": "Export Changelog",
+      "generateServer": "Generate Server",
+      "downloadCode": "Download Code",
+      "settings": "Settings",
+      "toolTips": {
+        "dashboard": "Dashboard",
+        "aasEditor": "AAS Editor",
+        "aasLifecycle": "AAS Lifecycle",
+        "aasServer": "Server Generator",
+        "about": "About",
+        "feedback": "Feedback",
+        "validateAAS": "Validate AAS",
+        "addEntity": "New AAS Entity",
+        "exportChangelog": "Export Changelog",
+        "generateServer": "Generate Server",
+        "downloadCode": "Download Code",
+        "settings": "Settings"
+      }
+    }
+  },
+  "main": {
+    "dialogs": {
+      "about": {
+        "title": "AAS Studio",
+        "subtitle": "Design, version and publish Asset Administration Shells",
+        "storyTitle": "Our story",
+        "story1": "AAS Studio was born to simplify creating and managing Digital Twins following the Industry 4.0 standard.",
+        "story2": "It pairs a visual editor for the AAS 3.1 metamodel with Git-style versioning for shells and submodels.",
+        "story3": "The goal is to bring AAS model design, validation and publishing into a single workflow.",
+        "milestonesTitle": "Milestones",
+        "milestone1Title": "AAS 3.1 Editor",
+        "milestone1Desc": "Visual editing of shells, submodels and elements, IDTA-compliant.",
+        "milestone2Title": "Git-like versioning",
+        "milestone2Desc": "Commit, branch, diff and restore for every model.",
+        "milestone3Title": "Runtime connection",
+        "milestone3Desc": "Pull and manage live AAS servers.",
+        "stat1": "IDTA submodels",
+        "stat2": "Tracked versions",
+        "stat3": "Supported formats"
+      },
+      "referrals": {
+        "title": "Refer & earn",
+        "closed": "completed",
+        "conditionsTitle": "Conditions",
+        "condition1": "The invite is valid for newly registered users.",
+        "condition2": "The reward is granted once registration is complete.",
+        "condition3": "Invites cannot be combined with other promotions.",
+        "confirmDelete": {
+          "title": "Delete invite?",
+          "message": "This action cannot be undone.",
+          "confirm": "Delete"
+        },
+        "deleteReferral": "Delete invite",
+        "emailInvalid": "Invalid email address",
+        "emailPlaceholder": "name@company.com",
+        "heroTitle": "Invite your colleagues",
+        "heroDesc": "Share AAS Studio and get perks for every colleague who joins.",
+        "howItWorksTitle": "How it works",
+        "inviteTitle": "Send an invite",
+        "maxReached": "You have reached the maximum number of invites",
+        "myReferrals": "My invites",
+        "noReferrals": "No invites sent yet",
+        "note": "You'll get a notification when an invite is accepted.",
+        "sendBtn": "Send invite",
+        "step1Title": "Invite",
+        "step1Desc": "Enter the email of the colleague to invite.",
+        "step2Title": "Registration",
+        "step2Desc": "Your colleague completes registration.",
+        "step3Title": "Reward",
+        "step3Desc": "You receive your reward."
+      }
+    }
+  }
+}

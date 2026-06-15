@@ -38,6 +38,7 @@ import {
   EditNoteRounded,
   ArchiveRounded,
   ArrowDropDownRounded,
+  LanRounded,
 } from '@mui/icons-material';
 
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
@@ -52,6 +53,7 @@ import ValidationDialog from './dialogs/ValidationDialog';
 import AddSubmodelDialog from './dialogs/AddSubmodelDialog';
 import AddEntityDialog from './dialogs/AddEntityDialog';
 import CommitDialog from './dialogs/CommitDialog';
+import ConnectServerDialog from './dialogs/ConnectServerDialog';
 import type { CommitStatus } from '@/hooks/useAASVersioning';
 import { buildAasEnvironment } from '@/utils/aas-builder';
 
@@ -73,7 +75,7 @@ export default function AASEditor() {
     updateCurrentModel,
     updateVersionStatus,
     addSubmodel, removeSubmodel, updateSubmodel, updateElement,
-    importAas, setSubmodels, refreshModels, clearDirty
+    importAas, setSubmodels, refreshModels
   } = useAASContext();
 
   if (!currentModel) return null;
@@ -95,6 +97,7 @@ export default function AASEditor() {
   const [showHistory, setShowHistory] = useState(false);
   const [showAddEntityDialog, setShowAddEntityDialog] = useState(false);
   const [showCommitDialog, setShowCommitDialog] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [editingSmIdx, setEditingSmIdx] = useState<Set<number>>(new Set());
 
@@ -173,10 +176,9 @@ export default function AASEditor() {
         }
         const docId = res.data?.document?.document_id;
         if (docId) {
-          // Commit succeeded — drop the dirty flag so refreshModels adopts the
-          // server-normalized snapshot (with documentId) instead of the local copy.
-          clearDirty(currentModel.id);
-          await refreshModels();
+          // Adopt the server-normalized snapshot (with documentId) for this model,
+          // replacing the local working copy now that it is persisted.
+          await refreshModels(currentModel.id);
           showSnackbar('AAS salvato sul server', 'success');
         }
       } else {
@@ -191,8 +193,7 @@ export default function AASEditor() {
           showSnackbar(res.message || 'Errore durante il commit', 'error');
           return;
         }
-        clearDirty(currentModel.id);
-        await refreshModels();
+        await refreshModels(currentModel.id);
         showSnackbar('Commit salvato sul server', 'success');
       }
     } catch (err: any) {
@@ -200,7 +201,7 @@ export default function AASEditor() {
     } finally {
       setIsSaving(false);
     }
-  }, [aasIdShort, aasAssetId, aasDescription, submodels, currentModel, createDocument, commitSubmodel, clearDirty, refreshModels, showSnackbar]);
+  }, [aasIdShort, aasAssetId, aasDescription, submodels, currentModel, createDocument, commitSubmodel, refreshModels, showSnackbar]);
 
   const toggleSubmodel = (id: string) => {
     setExpandedSubmodels(prev => {
@@ -333,6 +334,16 @@ export default function AASEditor() {
           onClick={handleExport}
         >
           Export AASX
+        </Button>
+
+        <Button
+          variant="outlined"
+          color="secondary"
+          size="small"
+          startIcon={<LanRounded />}
+          onClick={() => setShowConnectDialog(true)}
+        >
+          Connetti
         </Button>
 
         <Button
@@ -774,6 +785,8 @@ export default function AASEditor() {
           )}
         </Box>
       </Box>
+
+      <ConnectServerDialog open={showConnectDialog} onClose={() => setShowConnectDialog(false)} />
 
       <AddSubmodelDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} onAdd={addSubmodel} />
       <AddEntityDialog open={showAddEntityDialog} onClose={() => setShowAddEntityDialog(false)} onAdd={createModel} onImport={importAas} />
