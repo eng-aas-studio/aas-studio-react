@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useApiWrapper } from '@/api/apiWrapper';
 
 // ═══════════════════════════════════
@@ -58,6 +58,8 @@ export interface AASModel {
   submodels: SubmodelTemplate[];
   isImported?: boolean;
   documentId?: number;
+  /** Local working copy has uncommitted edits — must survive a server refresh. */
+  dirty?: boolean;
 }
 
 export interface SubmodelElementChild {
@@ -346,6 +348,7 @@ interface AASContextType {
   importAas: (model: AASModel) => void;
   setSubmodels: (sms: SubmodelTemplate[]) => void;
   refreshModels: () => Promise<void>;
+  clearDirty: (id: string) => void;
 }
 
 const AASContext = createContext<AASContextType | null>(null);
@@ -365,7 +368,11 @@ export function AASProvider({ children }: { children: ReactNode }) {
   });
 
   // ── Write-through localStorage cache ──────────────────────────────────────
+  // Keep a ref mirroring state so refreshModels can merge against the latest
+  // working copy without re-subscribing on every change.
+  const availableModelsRef = useRef(availableModels);
   useEffect(() => {
+    availableModelsRef.current = availableModels;
     if (!loading) {
       localStorage.setItem('aas_studio_models', JSON.stringify(availableModels));
     }
@@ -378,7 +385,7 @@ export function AASProvider({ children }: { children: ReactNode }) {
       const listRes = await api.get<{ total: number; documents: any[] }>('/v1/aas');
       const documents: any[] = listRes.data?.documents ?? [];
 
-      const models = await Promise.all(
+      const serverModels = await Promise.all(
         documents.map(async (doc) => {
           let submodels: SubmodelTemplate[] = [];
           try {
@@ -391,11 +398,27 @@ export function AASProvider({ children }: { children: ReactNode }) {
         })
       );
 
-      setAvailableModels(models);
-      if (models.length > 0) {
-        setSelectedModelId(prev => models.find(m => m.id === prev) ? prev : models[0].id);
+      // Non-destructive merge: never clobber the user's working copy.
+      //  • dirty models (uncommitted editor changes) are kept as-is, only their
+      //    server-side metadata (documentId, versions) is synced.
+      //  • locally created models not yet saved to the server are preserved.
+      const prev = availableModelsRef.current;
+      const serverById = new Map(serverModels.map(m => [m.id, m]));
+      const preserved = prev
+        .filter(lm => lm.dirty || (!lm.documentId && !serverById.has(lm.id)))
+        .map(lm => {
+          const s = serverById.get(lm.id);
+          return s ? { ...lm, documentId: s.documentId, versions: s.versions } : lm;
+        });
+      const preservedIds = new Set(preserved.map(m => m.id));
+      const fresh = serverModels.filter(m => !preservedIds.has(m.id));
+      const merged = [...fresh, ...preserved];
+
+      setAvailableModels(merged);
+      if (merged.length > 0) {
+        setSelectedModelId(prevId => merged.find(m => m.id === prevId) ? prevId : merged[0].id);
       }
-      localStorage.setItem('aas_studio_models', JSON.stringify(models));
+      localStorage.setItem('aas_studio_models', JSON.stringify(merged));
     } catch {
       // API unreachable — keep whatever is in localStorage (already in state)
     } finally {
@@ -428,31 +451,35 @@ export function AASProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateCurrentModel = useCallback((patch: Partial<AASModel>) => {
-    setAvailableModels(prev => prev.map(m => 
-      m.id === selectedModelId ? { ...m, ...patch } : m
+    setAvailableModels(prev => prev.map(m =>
+      m.id === selectedModelId ? { ...m, ...patch, dirty: true } : m
     ));
   }, [selectedModelId]);
+
+  const clearDirty = useCallback((id: string) => {
+    setAvailableModels(prev => prev.map(m => m.id === id ? { ...m, dirty: false } : m));
+  }, []);
 
   const setSubmodels = useCallback((sms: SubmodelTemplate[]) => {
     updateCurrentModel({ submodels: sms });
   }, [updateCurrentModel]);
 
   const addSubmodel = useCallback((sm: SubmodelTemplate) => {
-    setAvailableModels(prev => prev.map(m => 
-      m.id === selectedModelId ? { ...m, submodels: [...m.submodels, sm] } : m
+    setAvailableModels(prev => prev.map(m =>
+      m.id === selectedModelId ? { ...m, submodels: [...m.submodels, sm], dirty: true } : m
     ));
   }, [selectedModelId]);
 
   const removeSubmodel = useCallback((id: string) => {
-    setAvailableModels(prev => prev.map(m => 
-      m.id === selectedModelId ? { ...m, submodels: m.submodels.filter(s => s.id !== id) } : m
+    setAvailableModels(prev => prev.map(m =>
+      m.id === selectedModelId ? { ...m, submodels: m.submodels.filter(s => s.id !== id), dirty: true } : m
     ));
   }, [selectedModelId]);
 
   const updateSubmodel = useCallback((smId: string, patch: Partial<SubmodelTemplate>) => {
     setAvailableModels(prev => prev.map(m => {
       if (m.id !== selectedModelId) return m;
-      return { ...m, submodels: m.submodels.map(s => s.id === smId ? { ...s, ...patch } : s) };
+      return { ...m, dirty: true, submodels: m.submodels.map(s => s.id === smId ? { ...s, ...patch } : s) };
     }));
   }, [selectedModelId]);
 
@@ -461,6 +488,7 @@ export function AASProvider({ children }: { children: ReactNode }) {
       if (m.id !== selectedModelId) return m;
       return {
         ...m,
+        dirty: true,
         submodels: m.submodels.map(s => {
           if (s.id !== smId) return s;
           const elements = [...s.elements];
@@ -528,6 +556,7 @@ export function AASProvider({ children }: { children: ReactNode }) {
         importAas,
         setSubmodels,
         refreshModels,
+        clearDirty,
       }}
     >
       {children}

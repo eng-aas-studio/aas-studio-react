@@ -101,7 +101,9 @@ export default function AASLifecycle() {
       })
       .catch(() => setDbVersions([]))
       .finally(() => setLogLoading(false));
-  }, [currentModel?.documentId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Re-fetch when a new commit advances HEAD (its createdAt changes), so the
+    // timeline reflects edits committed from the editor without a full reload.
+  }, [currentModel?.documentId, currentModel?.versions?.[0]?.date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use DB history when available, fall back to local versions
   const versions = useMemo(

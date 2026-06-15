@@ -73,7 +73,7 @@ export default function AASEditor() {
     updateCurrentModel,
     updateVersionStatus,
     addSubmodel, removeSubmodel, updateSubmodel, updateElement,
-    importAas, setSubmodels, refreshModels
+    importAas, setSubmodels, refreshModels, clearDirty
   } = useAASContext();
 
   if (!currentModel) return null;
@@ -173,7 +173,9 @@ export default function AASEditor() {
         }
         const docId = res.data?.document?.document_id;
         if (docId) {
-          updateCurrentModel({ documentId: docId });
+          // Commit succeeded — drop the dirty flag so refreshModels adopts the
+          // server-normalized snapshot (with documentId) instead of the local copy.
+          clearDirty(currentModel.id);
           await refreshModels();
           showSnackbar('AAS salvato sul server', 'success');
         }
@@ -189,6 +191,7 @@ export default function AASEditor() {
           showSnackbar(res.message || 'Errore durante il commit', 'error');
           return;
         }
+        clearDirty(currentModel.id);
         await refreshModels();
         showSnackbar('Commit salvato sul server', 'success');
       }
@@ -197,7 +200,7 @@ export default function AASEditor() {
     } finally {
       setIsSaving(false);
     }
-  }, [aasIdShort, aasAssetId, aasDescription, submodels, currentModel, createDocument, commitSubmodel, updateCurrentModel, refreshModels, showSnackbar]);
+  }, [aasIdShort, aasAssetId, aasDescription, submodels, currentModel, createDocument, commitSubmodel, clearDirty, refreshModels, showSnackbar]);
 
   const toggleSubmodel = (id: string) => {
     setExpandedSubmodels(prev => {
