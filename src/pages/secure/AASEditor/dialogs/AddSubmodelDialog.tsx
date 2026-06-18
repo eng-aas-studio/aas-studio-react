@@ -28,14 +28,18 @@ import {
   SmartToyRounded,
 } from '@mui/icons-material';
 
-import type { AxiosInstance } from 'axios';
 import type { SubmodelTemplate, SubmodelElement, ElementType, XsdValueType } from '@/context/AASContext';
-import { useApiManager } from '@/api/apiManger';
+import { useCustomSnackbar } from '@/context/SnackbarContext';
+import {
+  loadSubmodelTemplates,
+  fetchSubmodelContent,
+  getSubmodelFileUrl,
+  checkCatalogAvailability,
+  getSetupInstructions,
+  type SubmodelFile,
+} from '@/utils/submodel-loader';
 
 // ── IDTA catalog ─────────────────────────────────────────────────────────────
-
-const RAW_BASE =
-  'https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/';
 
 interface CatalogEntry {
   id: string;
@@ -43,13 +47,35 @@ interface CatalogEntry {
   version: string;
   idtaCode: string;
   fileType: 'Template' | 'Example' | 'Sample' | 'Generic';
-  metamodel: string;  // e.g. "3.0", "3.1" — extensible for future versions
+  metamodel: string;
   path: string;
   downloadUrl: string;
   category: string;
 }
 
 let catalogCache: CatalogEntry[] | null = null;
+
+/**
+ * Converts SubmodelFile to CatalogEntry for UI compatibility
+ */
+function convertFileToCatalogEntry(
+  groupName: string,
+  version: string,
+  file: SubmodelFile,
+  category: string
+): CatalogEntry {
+  return {
+    id: `${groupName}__${version}__${file.fileType}__mm${file.metamodel}`,
+    name: groupName,
+    version,
+    idtaCode: file.idtaCode,
+    fileType: file.fileType,
+    metamodel: file.metamodel,
+    path: file.path,
+    downloadUrl: getSubmodelFileUrl(file.path),
+    category,
+  };
+}
 
 function deriveCategory(name: string): string {
   const n = name.toLowerCase();
@@ -66,57 +92,55 @@ function deriveCategory(name: string): string {
   return 'Other';
 }
 
-function parseEntry(path: string): CatalogEntry | null {
-  // published/[Name]/[Major]/[Minor]/([Patch]/)?[filename].json
-  const rel = path.replace('published/', '');
-  const parts = rel.split('/');
-  if (parts.length < 3) return null;
-
-  const name = parts[0];
-  const filename = parts[parts.length - 1];
-  const versionParts = parts.slice(1, parts.length - 1);
-  const version = versionParts.join('.');
-
-  const idtaMatch = filename.match(/IDTA[- ](\d+)/i);
-  const idtaCode = idtaMatch ? `IDTA ${idtaMatch[1]}` : '';
-
-  let fileType: CatalogEntry['fileType'] = 'Generic';
-  if (filename.includes('_Template_')) fileType = 'Template';
-  else if (filename.includes('_Example_')) fileType = 'Example';
-  else if (filename.includes('_Sample_')) fileType = 'Sample';
-
-  // Extract metamodel version from suffix, e.g. "forAASMetamodelV3.1" → "3.1"
-  const metamodelMatch = filename.match(/forAASMetamodelV(\d+(?:[._]\d+)*)/i);
-  const metamodel = metamodelMatch ? metamodelMatch[1].replace('_', '.') : '3.0';
-
-  return {
-    id: `${name}__${version}__${fileType}__mm${metamodel}`,
-    name,
-    version,
-    idtaCode,
-    fileType,
-    metamodel,
-    path,
-    downloadUrl: RAW_BASE + path,
-    category: deriveCategory(name),
-  };
-}
-
-async function fetchCatalog(api: AxiosInstance): Promise<CatalogEntry[]> {
+/**
+ * Loads catalog from local filesystem
+ * The catalog must be generated first by running: node scripts/download-submodels.js
+ */
+async function fetchCatalog(): Promise<CatalogEntry[]> {
   if (catalogCache) return catalogCache;
 
-  const { data } = await api.get<{ data: string[] }>('/v1/idta/catalog');
-  const paths: string[] = data.data;
+  try {
+    console.log('📥 Caricamento catalogo dal filesystem locale...');
 
-  const entries: CatalogEntry[] = [];
-  for (const p of paths) {
-    const entry = parseEntry(p);
-    if (entry) entries.push(entry);
+    // Check if catalog is available
+    const isAvailable = await checkCatalogAvailability();
+    if (!isAvailable) {
+      throw new Error(
+        'Catalogo IDTA non trovato. ' +
+        'Eseguire il comando setup: node scripts/download-submodels.js'
+      );
+    }
+
+    console.log('📂 Caricamento dei gruppi di submodel...');
+    const groups = await loadSubmodelTemplates();
+
+    const entries: CatalogEntry[] = [];
+    for (const group of groups) {
+      const category = deriveCategory(group.name);
+      for (const version of group.versions) {
+        for (const file of version.files) {
+          entries.push(
+            convertFileToCatalogEntry(group.name, version.version, file, category)
+          );
+        }
+      }
+    }
+
+    console.log('✅ Catalogo caricato:', { groupCount: groups.length, entryCount: entries.length });
+    entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+    catalogCache = entries;
+    return entries;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('❌ Errore durante il caricamento del catalogo:', message);
+
+    if (message.includes('non trovato') || message.includes('node scripts')) {
+      const setupInstructions = getSetupInstructions();
+      throw new Error(setupInstructions);
+    }
+
+    throw new Error(`Impossibile caricare il catalogo: ${message}`);
   }
-
-  entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
-  catalogCache = entries;
-  return entries;
 }
 
 // ── AAS JSON → SubmodelTemplate mapper ──────────────────────────────────────
@@ -169,9 +193,7 @@ function mapAasElements(elements: unknown[]): SubmodelElement[] {
 }
 
 async function fetchSubmodelTemplate(entry: CatalogEntry): Promise<SubmodelTemplate> {
-  const res = await fetch(entry.downloadUrl);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json() as Record<string, unknown>;
+  const json = await fetchSubmodelContent(entry.path);
 
   // IDTA JSON files are wrapped: { assetAdministrationShells, submodels: [...], conceptDescriptions }
   const submodelsArr = json.submodels as Array<Record<string, unknown>> | undefined;
@@ -247,7 +269,6 @@ interface AddSubmodelDialogProps {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelDialogProps) {
-  const api = useApiManager();
   const [tab, setTab] = useState<'catalog' | 'custom'>('catalog');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -264,6 +285,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const { showSnackbar } = useCustomSnackbar();
 
   useEffect(() => {
     if (!open) return;
@@ -273,11 +295,21 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
     }
     setCatalogLoading(true);
     setCatalogError(null);
-    fetchCatalog(api)
-      .then(setCatalog)
-      .catch((e: Error) => setCatalogError(e.message))
+    fetchCatalog()
+      .then(entries => {
+        setCatalog(entries);
+        if (entries.length === 0) {
+          showSnackbar('Nessun file JSON trovato nel catalogo IDTA', 'warning');
+        } else {
+          showSnackbar(`Catalogo IDTA caricato: ${entries.length} file`, 'success');
+        }
+      })
+      .catch((e: Error) => {
+        setCatalogError(e.message);
+        showSnackbar(`Errore caricamento catalogo: ${e.message}`, 'error');
+      })
       .finally(() => setCatalogLoading(false));
-  }, [open]);
+  }, [open, showSnackbar]);
 
   const categories = ['All', ...Array.from(new Set(catalog.map(e => e.category))).sort()];
   const metamodelVersions = ['All', ...Array.from(new Set(catalog.map(e => e.metamodel))).sort()];
@@ -389,7 +421,7 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
             Aggiungi Submodel
           </Typography>
           <Typography variant="caption" color="text.disabled" fontFamily="monospace">
-            Catalogo IDTA · {catalog.length > 0 ? `${catalog.length} file trovati` : 'caricamento…'}
+            Catalogo IDTA · {catalogLoading ? 'caricamento…' : (catalog.length === 0 ? '0 file trovati — nessun JSON trovato' : `${catalog.length} file trovati`)}
           </Typography>
         </Box>
         <Box flexGrow={1} />
@@ -493,6 +525,15 @@ export default function AddSubmodelDialog({ open, onClose, onAdd }: AddSubmodelD
                     <ErrorOutlineRounded color="error" />
                     <Typography variant="caption" color="error" textAlign="center">
                       {catalogError}
+                    </Typography>
+                  </Stack>
+                )}
+
+                {!catalogLoading && !catalogError && catalog.length === 0 && (
+                  <Stack alignItems="center" justifyContent="center" height="100%" spacing={1}>
+                    <ErrorOutlineRounded color="info" />
+                    <Typography variant="caption" color="text.secondary" textAlign="center">
+                      Nessun file JSON trovato nel catalogo IDTA. Controlla la connessione o riprova più tardi.
                     </Typography>
                   </Stack>
                 )}
