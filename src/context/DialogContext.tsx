@@ -6,6 +6,7 @@ interface DialogHandlers {
   onShowReferrals?: () => void;
   // AAS Editor
   onValidateAAS?: () => void;
+  onConnectServer?: () => void;
   onAddSubmodel?: () => void;
   onAddEntity?: () => void;
   onExportAASX?: () => void;

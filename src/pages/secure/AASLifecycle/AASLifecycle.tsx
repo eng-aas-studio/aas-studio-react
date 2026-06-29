@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Avatar,
   Box,
-  Button,
   Chip,
+  CircularProgress,
   Collapse,
   Divider,
   FormControl,
@@ -17,7 +17,6 @@ import {
   AddRounded,
   EditRounded,
   ExpandMoreRounded,
-  FileDownloadRounded,
   Inventory2Rounded,
   RemoveRounded,
   ScheduleRounded,
@@ -26,6 +25,7 @@ import {
 import { useAASContext } from '@/context/AASContext';
 import { useDialogContext } from '@/context/DialogContext';
 import { useAASVersioning } from '@/hooks/useAASVersioning';
+import ConfirmExportDialog from '@/pages/secure/AASEditor/dialogs/ConfirmExportDialog';
 import type { VersionStatus, ChangeType, AASVersion } from '@/context/AASContext';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ const changeIconEl = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AASLifecycle() {
-  const { selectedModelId, setSelectedModelId, availableModels } = useAASContext();
+  const { selectedModelId, setSelectedModelId, availableModels, loading } = useAASContext();
   const { setHandlers } = useDialogContext();
   const { getLog } = useAASVersioning();
 
@@ -112,6 +112,7 @@ export default function AASLifecycle() {
   );
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set([0]));
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const toggleVersion = (i: number) => {
     setExpanded(prev => {
@@ -124,6 +125,7 @@ export default function AASLifecycle() {
   const allChanges = versions.flatMap(v => v.details || []);
 
   const exportChangelog = useCallback(() => {
+    if (!currentModel) return;
     const lines: string[] = [`# Changelog — ${currentModel.idShort}`, `assetId: ${currentModel.assetId}`, ''];
     versions.forEach(v => {
       lines.push(`## v${v.version} rev ${v.revision} (${v.status}) — ${new Date(v.date).toLocaleDateString('it-IT')}`);
@@ -145,13 +147,44 @@ export default function AASLifecycle() {
     URL.revokeObjectURL(url);
   }, [currentModel]);
 
-  // Register sidebar handler
+  // Register sidebar handler — opens the confirmation dialog rather than
+  // exporting straight away.
   useEffect(() => {
-    setHandlers({ onExportChangelog: exportChangelog });
+    setHandlers({ onExportChangelog: () => setShowExportDialog(true) });
     return () => setHandlers({});
-  }, [exportChangelog, setHandlers]);
+  }, [setHandlers]);
 
-  const latestVersion = versions[0] ?? currentModel?.versions[0];
+  const latestVersion = versions[0] ?? currentModel?.versions?.[0];
+
+  // No model loaded yet (e.g. first access with a clean cache, before
+  // refreshModels resolves). Render a safe placeholder instead of crashing on
+  // the undefined latestVersion access below — which produced the white page.
+  if (!currentModel || !latestVersion) {
+    return (
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
+        <Stack alignItems="center" spacing={1.5}>
+          {loading ? (
+            <>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">
+                Caricamento modelli…
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Inventory2Rounded sx={{ fontSize: 40, color: 'text.disabled' }} />
+              <Typography variant="body2" color="text.disabled">
+                Nessun modello disponibile
+              </Typography>
+              <Typography variant="caption" color="text.disabled" textAlign="center">
+                Crea o importa un AAS nell'editor per vederne la cronologia.
+              </Typography>
+            </>
+          )}
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -183,12 +216,6 @@ export default function AASLifecycle() {
             v{latestVersion.version} · {latestVersion.status} · {currentModel.assetKind}
           </Typography>
         </Stack>
-
-        <Box flexGrow={1} />
-
-        <Button variant="outlined" size="small" startIcon={<FileDownloadRounded />} onClick={exportChangelog}>
-          Export Changelog
-        </Button>
       </Stack>
 
       {/* ── Content ── */}
@@ -384,6 +411,15 @@ export default function AASLifecycle() {
 
         </Box>
       </Box>
+
+      <ConfirmExportDialog
+        open={showExportDialog}
+        fileName={`changelog-${currentModel.idShort}.md`}
+        title="Esporta changelog"
+        message="Vuoi davvero esportare il changelog del modello corrente? Il file Markdown verrà scaricato sul tuo dispositivo."
+        onClose={() => setShowExportDialog(false)}
+        onConfirm={() => { exportChangelog(); setShowExportDialog(false); }}
+      />
     </Box>
   );
 }

@@ -14,12 +14,14 @@ import {
   Paper,
   Select,
   Stack,
+  TextareaAutosize,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   AccountTreeRounded,
   AddRounded,
@@ -30,15 +32,12 @@ import {
   EditRounded,
   ErrorOutlineRounded,
   ExpandMoreRounded,
-  FileDownloadRounded,
-  CloudUploadRounded,
   FormatListBulletedRounded,
   HistoryRounded,
   WarningAmberRounded,
   EditNoteRounded,
   ArchiveRounded,
   ArrowDropDownRounded,
-  LanRounded,
 } from '@mui/icons-material';
 
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
@@ -54,6 +53,7 @@ import AddSubmodelDialog from './dialogs/AddSubmodelDialog';
 import AddEntityDialog from './dialogs/AddEntityDialog';
 import CommitDialog from './dialogs/CommitDialog';
 import ConnectServerDialog from './dialogs/ConnectServerDialog';
+import ConfirmExportDialog from './dialogs/ConfirmExportDialog';
 import type { CommitStatus } from '@/hooks/useAASVersioning';
 import { buildAasEnvironment } from '@/utils/aas-builder';
 
@@ -98,6 +98,7 @@ export default function AASEditor() {
   const [showAddEntityDialog, setShowAddEntityDialog] = useState(false);
   const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [editingSmIdx, setEditingSmIdx] = useState<Set<number>>(new Set());
 
@@ -143,9 +144,10 @@ export default function AASEditor() {
   useEffect(() => {
     setHandlers({
       onValidateAAS: handleValidateInline,
+      onConnectServer: () => setShowConnectDialog(true),
       onAddSubmodel: () => setShowAddDialog(true),
       onAddEntity: () => setShowAddEntityDialog(true),
-      onExportAASX: handleExport,
+      onExportAASX: () => setShowExportDialog(true),
     });
     return () => setHandlers({});
   }, [setHandlers, handleExport, handleValidateInline]);
@@ -315,50 +317,6 @@ export default function AASEditor() {
         </ToggleButtonGroup>
 
         <Button
-          variant="contained"
-          color={validationResult ? (validationResult.valid ? 'success' : 'error') : 'success'}
-          size="small"
-          startIcon={validationResult && !validationResult.valid ? <ErrorOutlineRounded /> : <CheckRounded />}
-          onClick={handleValidateInline}
-        >
-          {validationResult
-            ? validationResult.valid ? 'Valido' : `${validationResult.errors.length} Errori`
-            : 'Validate'}
-        </Button>
-
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          startIcon={<FileDownloadRounded />}
-          onClick={handleExport}
-        >
-          Export AASX
-        </Button>
-
-        <Button
-          variant="outlined"
-          color="secondary"
-          size="small"
-          startIcon={<LanRounded />}
-          onClick={() => setShowConnectDialog(true)}
-        >
-          Connetti
-        </Button>
-
-        <Button
-          variant={currentModel.documentId ? 'outlined' : 'contained'}
-          color="info"
-          size="small"
-          startIcon={isSaving ? undefined : <CloudUploadRounded />}
-          onClick={() => setShowCommitDialog(true)}
-          disabled={isSaving}
-          sx={{ minWidth: 120 }}
-        >
-          {isSaving ? 'Salvataggio…' : currentModel.documentId ? 'Commit' : 'Salva sul server'}
-        </Button>
-
-        <Button
           variant={showHistory ? 'contained' : 'outlined'}
           size="small"
           startIcon={<HistoryRounded />}
@@ -389,10 +347,9 @@ export default function AASEditor() {
           </Typography>
           <Stack spacing={1.5}>
             {([
-              ['idShort', aasIdShort, (v: string) => updateCurrentModel({ idShort: v }), false],
-              ['globalAssetId', aasAssetId, (v: string) => updateCurrentModel({ assetId: v }), false],
-              ['description', aasDescription, (v: string) => updateCurrentModel({ description: v }), true],
-            ] as [string, string, (v: string) => void, boolean][]).map(([label, value, setter, multiline]) => (
+              ['idShort', aasIdShort, (v: string) => updateCurrentModel({ idShort: v })],
+              ['globalAssetId', aasAssetId, (v: string) => updateCurrentModel({ assetId: v })],
+            ] as [string, string, (v: string) => void][]).map(([label, value, setter]) => (
               <Box key={label}>
                 <FormLabel sx={{ fontSize: 10, mb: 0.5, display: 'block' }}>{label}</FormLabel>
                 <TextField
@@ -400,12 +357,57 @@ export default function AASEditor() {
                   onChange={(e) => setter(e.target.value)}
                   size="small"
                   fullWidth
-                  multiline={multiline}
-                  rows={multiline ? 2 : undefined}
                   inputProps={{ style: { fontFamily: 'monospace', fontSize: 11 } }}
                 />
               </Box>
             ))}
+            <Box>
+              <FormLabel sx={{ fontSize: 10, mb: 0.5, display: 'block' }}>description</FormLabel>
+              {/* Frame replicating the theme's OutlinedInput so a standalone
+                  TextareaAutosize matches the other fields' style. */}
+              <Box
+                sx={(theme) => ({
+                  display: 'flex',
+                  padding: '8px 12px',
+                  color: (theme.vars || theme).palette.text.primary,
+                  borderRadius: `${theme.shape.borderRadius}px`,
+                  border: `1px solid ${(theme.vars || theme).palette.divider}`,
+                  backgroundColor: (theme.vars || theme).palette.background.default,
+                  transition: 'border 120ms ease-in',
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  '&:hover': { borderColor: (theme.vars || theme).palette.grey[500] },
+                  '&:focus-within': {
+                    outline: theme.vars
+                      ? `3px solid rgba(${theme.vars.palette.primary.mainChannel} / 0.5)`
+                      : `3px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                    borderColor: (theme.vars || theme).palette.primary.light,
+                  },
+                })}
+              >
+                <TextareaAutosize
+                  minRows={1}
+                  maxRows={3}
+                  value={aasDescription}
+                  onChange={(e) => updateCurrentModel({ description: e.target.value })}
+                  style={{
+                    width: '100%',
+                    margin: 0,
+                    padding: 0,
+                    color: 'inherit',
+                    fontSize: 'inherit',
+                    fontFamily: 'inherit',
+                    lineHeight: 'inherit',
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    background: 'transparent',
+                    display: 'block',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </Box>
+            </Box>
             <Box>
               <FormLabel sx={{ fontSize: 10, mb: 0.5, display: 'block' }}>assetKind</FormLabel>
               <TextField
@@ -787,6 +789,14 @@ export default function AASEditor() {
       </Box>
 
       <ConnectServerDialog open={showConnectDialog} onClose={() => setShowConnectDialog(false)} />
+
+      <ConfirmExportDialog
+        open={showExportDialog}
+        fileName={`${aasIdShort || 'aas'}.json`}
+        onClose={() => setShowExportDialog(false)}
+        onConfirm={() => { handleExport(); setShowExportDialog(false); }}
+      />
+
 
       <AddSubmodelDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} onAdd={addSubmodel} />
       <AddEntityDialog open={showAddEntityDialog} onClose={() => setShowAddEntityDialog(false)} onAdd={createModel} onImport={importAas} />

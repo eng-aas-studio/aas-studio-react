@@ -19,6 +19,8 @@ import {
   CodeRounded,
   HistoryRounded,
   SettingsRounded,
+  LanRounded,
+  FileDownloadRounded,
 } from '@mui/icons-material';
 
 import { useDialogContext } from '@/context/DialogContext';
@@ -101,6 +103,16 @@ export default function MenuContent({ collapsed, onItemClick }: { collapsed: boo
     if (currentPath === '/editor') {
       return [
         {
+          text: 'connectServer',
+          icon: (
+            <Tooltip title={t('sideMenu.menuContent.toolTips.connectServer', 'Connetti AASX')} arrow>
+              <LanRounded />
+            </Tooltip>
+          ),
+          path: null,
+          action: () => handlers.onConnectServer?.(),
+        },
+        {
           text: 'validateAAS',
           icon: (
             <Tooltip title={t('sideMenu.menuContent.toolTips.validateAAS', 'Valida AAS')} arrow>
@@ -109,6 +121,16 @@ export default function MenuContent({ collapsed, onItemClick }: { collapsed: boo
           ),
           path: null,
           action: () => handlers.onValidateAAS?.(),
+        },
+        {
+          text: 'exportAASX',
+          icon: (
+            <Tooltip title={t('sideMenu.menuContent.toolTips.exportAASX', 'Esporta AASX')} arrow>
+              <FileDownloadRounded />
+            </Tooltip>
+          ),
+          path: null,
+          action: () => handlers.onExportAASX?.(),
         },
         {
           text: 'addEntity',
