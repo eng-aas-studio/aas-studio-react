@@ -101,6 +101,7 @@ export default function AASEditor() {
   const [statusMenuAnchor, setStatusMenuAnchor] = useState<null | HTMLElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSubmodels, setExpandedSubmodels] = useState<Set<string>>(new Set([submodels[0]?.id]));
+  const [expandedElements, setExpandedElements] = useState<Set<string>>(new Set());
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
@@ -277,6 +278,14 @@ export default function AASEditor() {
       } else {
         next.add(id);
       }
+      return next;
+    });
+  };
+
+  const toggleElement = (key: string) => {
+    setExpandedElements(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   };
@@ -745,6 +754,9 @@ export default function AASEditor() {
                           const typeColor: 'default' | 'warning' | 'info' =
                             el.type === 'SubmodelElementCollection' || el.type === 'SubmodelElementList' ? 'warning' :
                             el.type === 'Operation' ? 'info' : 'default';
+                          const isContainer = el.type === 'SubmodelElementCollection' || el.type === 'SubmodelElementList';
+                          const elKey = `${sm.id}:${ei}`;
+                          const elOpen = expandedElements.has(elKey);
                           const elErrors = validationResult?.errors.filter(
                             f => f.path.startsWith(smPrefix) && f.path.includes(`→ ${el.idShort}`)
                           ) ?? [];
@@ -762,7 +774,11 @@ export default function AASEditor() {
                                 ...(elErrors.length === 0 && elWarnings.length > 0 && { borderColor: 'warning.main', bgcolor: 'rgba(245,158,11,.04)' }),
                               }}
                             >
-                              <Stack direction="row" alignItems="center" spacing={1} mb={el.type === 'Property' ? 1 : 0}>
+                              <Stack
+                                direction="row" alignItems="center" spacing={1} mb={el.type === 'Property' ? 1 : 0}
+                                onClick={isContainer ? () => toggleElement(elKey) : undefined}
+                                sx={isContainer ? { cursor: 'pointer' } : undefined}
+                              >
                                 <Chip
                                   size="small"
                                   label={el.type}
@@ -783,6 +799,16 @@ export default function AASEditor() {
                                   <Typography variant="caption" color="text.disabled" fontFamily="monospace" sx={{ fontSize: 9 }}>
                                     {el.semanticId}
                                   </Typography>
+                                )}
+                                {isContainer && (
+                                  <ExpandMoreRounded
+                                    sx={{
+                                      color: 'text.secondary',
+                                      transform: elOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                      transition: 'transform 0.2s',
+                                      fontSize: 16,
+                                    }}
+                                  />
                                 )}
                               </Stack>
 
@@ -831,7 +857,8 @@ export default function AASEditor() {
                                 </Stack>
                               )}
 
-                              {(el.type === 'SubmodelElementCollection' || el.type === 'SubmodelElementList') && el.children && (
+                              {isContainer && el.children && (
+                                <Collapse in={elOpen}>
                                 <Box sx={{ mt: 0.75, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider' }}>
                                   {el.children.map((ch, ci) => (
                                     <Stack key={ci} direction="row" alignItems="center" spacing={0.75} py={0.4}>
@@ -856,6 +883,7 @@ export default function AASEditor() {
                                     <Typography variant="caption" fontFamily="monospace" color="text.disabled">vuoto</Typography>
                                   )}
                                 </Box>
+                                </Collapse>
                               )}
 
                               {elErrors.map((f, fi) => (
