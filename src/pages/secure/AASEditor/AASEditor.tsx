@@ -85,7 +85,7 @@ export default function AASEditor() {
     updateCurrentModel,
     updateVersionStatus,
     addSubmodel, removeSubmodel, updateSubmodel, updateElement, updateChild,
-    importAas, setSubmodels, refreshModels
+    importAas, refreshModels
   } = useAASContext();
 
   const submodels = currentModel?.submodels ?? NO_SUBMODELS;
@@ -1013,13 +1013,18 @@ export default function AASEditor() {
           assetKind: currentModel.assetKind,
           description: aasDescription,
         }}
-        onAfterCommit={refreshModels}
+        onAfterCommit={() => refreshModels(currentModel.id)}
         onOpenCommitDialog={() => setShowCommitDialog(true)}
         onDocumentCreated={(id) => updateCurrentModel({ documentId: id })}
         onCheckoutContent={(content) => {
-          if (Array.isArray(content?.submodels)) {
-            setSubmodels(content.submodels);
-          }
+          // Load a past snapshot into the working copy. Restore every field the
+          // snapshot carries (saved in handleSaveToServer), not just submodels.
+          const patch: Partial<AASModel> = {};
+          if (Array.isArray(content?.submodels)) patch.submodels = content.submodels;
+          if (typeof content?.idShort === 'string') patch.idShort = content.idShort;
+          if (typeof content?.assetId === 'string') patch.assetId = content.assetId;
+          if (typeof content?.description === 'string') patch.description = content.description;
+          if (Object.keys(patch).length > 0) updateCurrentModel(patch);
         }}
       />
     </Box>

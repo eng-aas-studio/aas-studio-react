@@ -23,7 +23,6 @@ import {
   CheckCircleOutlineRounded,
   CloseRounded,
   CompareArrowsRounded,
-  ExpandMoreRounded,
   HistoryRounded,
   RestoreRounded,
   SaveRounded,
@@ -36,6 +35,7 @@ import {
   type CommitStatus,
 } from '@/hooks/useAASVersioning';
 import type { SubmodelTemplate } from '@/context/AASContext';
+import { useCustomSnackbar } from '@/context/SnackbarContext';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -183,10 +183,11 @@ interface VersionHistoryDrawerProps {
 }
 
 export default function VersionHistoryDrawer({
-  open, onClose, documentId, submodels, modelData,
-  onCheckoutContent, onDocumentCreated, onAfterCommit, onOpenCommitDialog,
+  open, onClose, documentId,
+  onCheckoutContent, onAfterCommit, onOpenCommitDialog,
 }: VersionHistoryDrawerProps) {
   const versioning = useAASVersioning();
+  const { showSnackbar } = useCustomSnackbar();
 
   const [commits, setCommits] = useState<AASCommit[]>([]);
   const [refs, setRefs] = useState<AASRef[]>([]);
@@ -226,13 +227,6 @@ export default function VersionHistoryDrawer({
     if (open && documentId) loadData();
   }, [open, documentId, loadData]);
 
-  // Expose loadData so parent can trigger refresh after an external commit
-  useEffect(() => {
-    if (open && documentId && onAfterCommit) {
-      // onAfterCommit triggers refreshModels in parent; we also reload our list
-    }
-  }, []);
-
   // ── Actions ───────────────────────────────────────────────────────────
 
   const handleCheckout = async (commitId: number) => {
@@ -242,8 +236,11 @@ export default function VersionHistoryDrawer({
       const res = await versioning.checkout(documentId, { commit_id: commitId });
       if (res.status === 'Success' && res.data?.content) {
         onCheckoutContent(res.data.content);
+        showSnackbar('Snapshot caricato nell\'editor', 'success');
       } else {
-        setError(res.message || 'Checkout fallito');
+        const msg = res.message || 'Checkout fallito';
+        setError(msg);
+        showSnackbar(msg, 'error');
       }
     } finally {
       setActionLoading(false);
@@ -255,8 +252,15 @@ export default function VersionHistoryDrawer({
     setActionLoading(true);
     try {
       const res = await versioning.restoreCommit(documentId, commitId);
-      if (res.status === 'Success') { await loadData(); onAfterCommit?.(); }
-      else setError(res.message || 'Restore fallito');
+      if (res.status === 'Success') {
+        await loadData();
+        onAfterCommit?.();
+        showSnackbar('Commit ripristinato', 'success');
+      } else {
+        const msg = res.message || 'Restore fallito';
+        setError(msg);
+        showSnackbar(msg, 'error');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -302,11 +306,6 @@ export default function VersionHistoryDrawer({
       setActionLoading(false);
     }
   };
-
-  // Refresh commit list whenever parent signals a new commit happened
-  const refreshAfterExternalCommit = useCallback(async () => {
-    if (open && documentId) await loadData();
-  }, [open, documentId, loadData]);
 
   // ── Derived data ──────────────────────────────────────────────────────
 
