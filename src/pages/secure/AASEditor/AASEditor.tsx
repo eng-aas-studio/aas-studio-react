@@ -108,6 +108,7 @@ export default function AASEditor() {
   const [initialValidationData, setInitialValidationData] = useState<Record<string, unknown> | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [submodelToDelete, setSubmodelToDelete] = useState<SubmodelTemplate | null>(null);
   const [showAddEntityDialog, setShowAddEntityDialog] = useState(false);
   const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
@@ -683,7 +684,7 @@ export default function AASEditor() {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={(e) => { e.stopPropagation(); removeSubmodel(sm.id); }}
+                        onClick={(e) => { e.stopPropagation(); setSubmodelToDelete(sm); }}
                         sx={{ color: 'text.disabled' }}
                       >
                         <DeleteRounded sx={{ fontSize: 15 }} />
@@ -952,13 +953,35 @@ export default function AASEditor() {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowDeleteConfirm(false)}>No</Button>
+          <Button onClick={() => setShowDeleteConfirm(false)}>Annulla</Button>
           <Button
             color="error"
             variant="contained"
             onClick={() => { deleteModel(); setShowDeleteConfirm(false); }}
           >
-            Sì
+            Elimina
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(submodelToDelete)} onClose={() => setSubmodelToDelete(null)}>
+        <DialogTitle>Elimina Submodel</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Vuoi eliminare il submodel "{submodelToDelete?.idShort}"
+            {submodelToDelete?.elements?.length
+              ? ` e i suoi ${submodelToDelete.elements.length} ${submodelToDelete.elements.length === 1 ? 'elemento' : 'elementi'}`
+              : ''}? L'azione non può essere annullata.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSubmodelToDelete(null)}>Annulla</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => { if (submodelToDelete) removeSubmodel(submodelToDelete.id); setSubmodelToDelete(null); }}
+          >
+            Elimina
           </Button>
         </DialogActions>
       </Dialog>
