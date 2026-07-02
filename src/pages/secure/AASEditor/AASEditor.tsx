@@ -196,6 +196,22 @@ export default function AASEditor() {
     return () => setHandlers({});
   }, [setHandlers, handleExport, handleValidateInline]);
 
+  // Keyboard accelerators: Ctrl/Cmd+S = commit, Ctrl/Cmd+Enter = validate.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !currentModel) return;
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        if (!isSaving && (currentModel.dirty || !currentModel.documentId)) setShowCommitDialog(true);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleValidateInline();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentModel, isSaving, handleValidateInline]);
+
   const handleSaveToServer = useCallback(async (
     message: string, version: string, revision: string, status: CommitStatus
   ) => {
@@ -424,15 +440,19 @@ export default function AASEditor() {
           Cronologia
         </Button>
 
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={isSaving ? <CircularProgress size={14} color="inherit" /> : <CommitRounded />}
-          onClick={() => setShowCommitDialog(true)}
-          disabled={isSaving || (!currentModel.dirty && Boolean(currentModel.documentId))}
-        >
-          Commit
-        </Button>
+        <Tooltip title="Salva commit (Ctrl+S)" arrow>
+          <span>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={isSaving ? <CircularProgress size={14} color="inherit" /> : <CommitRounded />}
+              onClick={() => setShowCommitDialog(true)}
+              disabled={isSaving || (!currentModel.dirty && Boolean(currentModel.documentId))}
+            >
+              Commit
+            </Button>
+          </span>
+        </Tooltip>
 
         <Button
           variant="outlined"
@@ -696,7 +716,7 @@ export default function AASEditor() {
                       onClick={() => toggleSubmodel(sm.id)}
                       onKeyDown={activateOnKey(() => toggleSubmodel(sm.id))}
                     >
-                      <WidgetsRounded sx={{ fontSize: 18, color: 'success.main', flexShrink: 0 }} />
+                      <WidgetsRounded sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
                       <Box flex={1} minWidth={0}>
                         <Typography variant="body2" fontWeight={600} noWrap>{sm.idShort}</Typography>
                         <Typography variant="caption" color="text.secondary" fontFamily="monospace" display="block" noWrap>
