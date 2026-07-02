@@ -259,7 +259,7 @@ export default function AASEditor() {
           <Inventory2Rounded sx={{ fontSize: 48, color: 'text.secondary' }} />
           <Typography variant="h6" fontWeight={600}>Nessun modello AAS</Typography>
           <Typography variant="body2" color="text.secondary">
-            Crea una nuova entità AAS o importa un file JSON standard per iniziare.
+            Crea un nuovo modello AAS o importa un file JSON standard per iniziare.
           </Typography>
           <Button
             variant="contained"
@@ -267,7 +267,7 @@ export default function AASEditor() {
             onClick={() => setShowAddEntityDialog(true)}
             sx={{ mt: 1 }}
           >
-            Nuova entità
+            Nuovo modello
           </Button>
         </Stack>
         <AddEntityDialog
@@ -421,7 +421,7 @@ export default function AASEditor() {
           onClick={() => setShowHistory(v => !v)}
           sx={{ ml: 0.5 }}
         >
-          History
+          Cronologia
         </Button>
 
         <Button
@@ -462,7 +462,7 @@ export default function AASEditor() {
           }}
         >
           <Typography variant="overline" component="h2" color="text.secondary" display="block" mb={1.5}>
-            AAS Properties
+            Proprietà AAS
           </Typography>
           <Stack spacing={1.5}>
             {([
@@ -541,7 +541,7 @@ export default function AASEditor() {
 
           <Paper variant="outlined" sx={{ mt: 2.5, p: 1.5 }}>
             <Typography variant="overline" component="h3" color="text.secondary" display="block" mb={1}>
-              Stats
+              Statistiche
             </Typography>
             {([
               ['Submodels', submodels.length],
@@ -658,7 +658,7 @@ export default function AASEditor() {
                 <Stack alignItems="center" justifyContent="center" sx={{ height: '100%', minHeight: 200 }} spacing={0.75}>
                   <WidgetsRounded sx={{ fontSize: 40, color: 'text.secondary' }} />
                   <Typography variant="body2" fontWeight={500} color="text.secondary">Trascina un Submodel qui</Typography>
-                  <Typography variant="caption" fontFamily="monospace" color="text.secondary">oppure clicca + sotto</Typography>
+                  <Typography variant="caption" fontFamily="monospace" color="text.secondary">oppure usa «Aggiungi Submodel» qui sotto</Typography>
                 </Stack>
               )}
 
@@ -999,7 +999,7 @@ export default function AASEditor() {
         <DialogTitle>Elimina AAS</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Sei sicuro di voler eliminare "{currentModel?.idShort}"?
+            Vuoi eliminare l'AAS "{currentModel?.idShort}" e tutti i suoi submodel? L'azione non può essere annullata.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
