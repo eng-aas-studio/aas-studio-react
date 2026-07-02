@@ -45,6 +45,8 @@ import {
   EditNoteRounded,
   ArchiveRounded,
   ArrowDropDownRounded,
+  Inventory2Rounded,
+  WidgetsRounded,
 } from '@mui/icons-material';
 
 import VersionHistoryDrawer from './components/VersionHistoryDrawer';
@@ -254,7 +256,7 @@ export default function AASEditor() {
     return (
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
         <Stack alignItems="center" spacing={1.5} sx={{ maxWidth: 420, textAlign: 'center' }}>
-          <Typography fontSize={48}>🗂️</Typography>
+          <Inventory2Rounded sx={{ fontSize: 48, color: 'text.secondary' }} />
           <Typography variant="h6" fontWeight={600}>Nessun modello AAS</Typography>
           <Typography variant="body2" color="text.secondary">
             Crea una nuova entità AAS o importa un file JSON standard per iniziare.
@@ -306,6 +308,8 @@ export default function AASEditor() {
         direction="row"
         alignItems="center"
         spacing={1.5}
+        useFlexGap
+        flexWrap="wrap"
         sx={{ px: 3, py: 1.25, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0 }}
       >
         <FormControl size="small">
@@ -457,7 +461,7 @@ export default function AASEditor() {
             flexShrink: 0,
           }}
         >
-          <Typography variant="overline" color="text.secondary" display="block" mb={1.5}>
+          <Typography variant="overline" component="h2" color="text.secondary" display="block" mb={1.5}>
             AAS Properties
           </Typography>
           <Stack spacing={1.5}>
@@ -472,7 +476,7 @@ export default function AASEditor() {
                   onChange={(e) => setter(e.target.value)}
                   size="small"
                   fullWidth
-                  inputProps={{ style: { fontFamily: 'monospace', fontSize: 11 } }}
+                  inputProps={{ 'aria-label': label, style: { fontFamily: 'monospace', fontSize: 11 } }}
                 />
               </Box>
             ))}
@@ -501,6 +505,7 @@ export default function AASEditor() {
                 })}
               >
                 <TextareaAutosize
+                  aria-label="description"
                   minRows={1}
                   maxRows={3}
                   value={aasDescription}
@@ -529,13 +534,13 @@ export default function AASEditor() {
                 value={currentModel.assetKind}
                 size="small"
                 fullWidth
-                inputProps={{ readOnly: true, style: { fontFamily: 'monospace', fontSize: 11 } }}
+                inputProps={{ 'aria-label': 'assetKind', readOnly: true, style: { fontFamily: 'monospace', fontSize: 11 } }}
               />
             </Box>
           </Stack>
 
           <Paper variant="outlined" sx={{ mt: 2.5, p: 1.5 }}>
-            <Typography variant="overline" color="text.secondary" display="block" mb={1}>
+            <Typography variant="overline" component="h3" color="text.secondary" display="block" mb={1}>
               Stats
             </Typography>
             {([
@@ -553,16 +558,16 @@ export default function AASEditor() {
 
         {/* Right: Editor Area */}
         <Box
-          sx={{
+          sx={(theme) => ({
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             border: '2px dashed',
             borderColor: dragOver ? 'primary.main' : 'transparent',
-            bgcolor: dragOver ? 'rgba(99,102,241,.04)' : 'background.default',
+            bgcolor: dragOver ? alpha(theme.palette.primary.main, 0.04) : 'background.default',
             transition: 'all .2s',
             overflow: 'hidden',
-          }}
+          })}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
@@ -581,11 +586,13 @@ export default function AASEditor() {
               {validationResult && (
                 <Paper
                   variant="outlined"
-                  sx={{
+                  sx={(theme) => ({
                     mb: 2,
                     borderColor: validationResult.valid ? 'success.main' : 'error.main',
-                    bgcolor: validationResult.valid ? 'rgba(16,185,129,.06)' : 'rgba(239,68,68,.06)',
-                  }}
+                    bgcolor: validationResult.valid
+                      ? alpha(theme.palette.success.main, 0.08)
+                      : alpha(theme.palette.error.main, 0.08),
+                  })}
                 >
                   <Box sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     {validationResult.valid
@@ -649,7 +656,7 @@ export default function AASEditor() {
 
               {!submodels.length && !dragOver && (
                 <Stack alignItems="center" justifyContent="center" sx={{ height: '100%', minHeight: 200 }} spacing={0.75}>
-                  <Typography fontSize={36}>🟩</Typography>
+                  <WidgetsRounded sx={{ fontSize: 40, color: 'text.secondary' }} />
                   <Typography variant="body2" fontWeight={500} color="text.secondary">Trascina un Submodel qui</Typography>
                   <Typography variant="caption" fontFamily="monospace" color="text.secondary">oppure clicca + sotto</Typography>
                 </Stack>
@@ -689,7 +696,7 @@ export default function AASEditor() {
                       onClick={() => toggleSubmodel(sm.id)}
                       onKeyDown={activateOnKey(() => toggleSubmodel(sm.id))}
                     >
-                      <Typography fontSize={14}>🟩</Typography>
+                      <WidgetsRounded sx={{ fontSize: 18, color: 'success.main', flexShrink: 0 }} />
                       <Box flex={1} minWidth={0}>
                         <Typography variant="body2" fontWeight={600} noWrap>{sm.idShort}</Typography>
                         <Typography variant="caption" color="text.secondary" fontFamily="monospace" display="block" noWrap>
@@ -747,7 +754,7 @@ export default function AASEditor() {
                                 fullWidth
                                 value={sm.idShort}
                                 onChange={(e) => updateSubmodel(sm.id, { idShort: e.target.value })}
-                                inputProps={{ style: { fontFamily: 'monospace', fontSize: 11 } }}
+                                inputProps={{ 'aria-label': 'Submodel idShort', style: { fontFamily: 'monospace', fontSize: 11 } }}
                               />
                             </Box>
                             <Box sx={{ flex: 2 }}>
@@ -757,7 +764,7 @@ export default function AASEditor() {
                                 fullWidth
                                 value={sm.id}
                                 onChange={(e) => updateSubmodel(sm.id, { id: e.target.value })}
-                                inputProps={{ style: { fontFamily: 'monospace', fontSize: 11 } }}
+                                inputProps={{ 'aria-label': 'Submodel id (IRI)', style: { fontFamily: 'monospace', fontSize: 11 } }}
                               />
                             </Box>
                           </Stack>
@@ -768,7 +775,7 @@ export default function AASEditor() {
                               fullWidth
                               value={sm.semanticId}
                               onChange={(e) => updateSubmodel(sm.id, { semanticId: e.target.value })}
-                              inputProps={{ style: { fontFamily: 'monospace', fontSize: 11 } }}
+                              inputProps={{ 'aria-label': 'Submodel semanticId', style: { fontFamily: 'monospace', fontSize: 11 } }}
                             />
                           </Box>
                           <Box>
@@ -778,6 +785,7 @@ export default function AASEditor() {
                               fullWidth
                               value={sm.description}
                               onChange={(e) => updateSubmodel(sm.id, { description: e.target.value })}
+                              inputProps={{ 'aria-label': 'Submodel descrizione' }}
                             />
                           </Box>
                         </Stack>
@@ -804,12 +812,12 @@ export default function AASEditor() {
                             <Paper
                               key={ei}
                               variant="outlined"
-                              sx={{
+                              sx={(theme) => ({
                                 p: 1.5,
                                 mb: 0.75,
-                                ...(elErrors.length > 0 && { borderColor: 'error.main', bgcolor: 'rgba(239,68,68,.04)' }),
-                                ...(elErrors.length === 0 && elWarnings.length > 0 && { borderColor: 'warning.main', bgcolor: 'rgba(245,158,11,.04)' }),
-                              }}
+                                ...(elErrors.length > 0 && { borderColor: 'error.main', bgcolor: alpha(theme.palette.error.main, 0.06) }),
+                                ...(elErrors.length === 0 && elWarnings.length > 0 && { borderColor: 'warning.main', bgcolor: alpha(theme.palette.warning.main, 0.06) }),
+                              })}
                             >
                               <Stack
                                 direction="row" alignItems="center" spacing={1} mb={el.type === 'Property' ? 1 : 0}
@@ -827,19 +835,19 @@ export default function AASEditor() {
                                   label={el.type}
                                   color={typeColor}
                                   variant="outlined"
-                                  sx={{ fontFamily: 'monospace', fontSize: 9, height: 18 }}
+                                  sx={{ fontFamily: 'monospace', fontSize: 10, height: 18 }}
                                 />
                                 <Typography variant="caption" fontWeight={600} fontFamily="monospace">
                                   {el.idShort}
                                 </Typography>
                                 {el.required && (
-                                  <Typography variant="caption" color="error.main" fontWeight={700} sx={{ fontSize: 9 }}>
+                                  <Typography variant="caption" color="error.main" fontWeight={700} sx={{ fontSize: 10 }}>
                                     REQ
                                   </Typography>
                                 )}
                                 <Box flex={1} />
                                 {el.semanticId && (
-                                  <Typography variant="caption" color="text.secondary" fontFamily="monospace" sx={{ fontSize: 9 }}>
+                                  <Typography variant="caption" color="text.secondary" fontFamily="monospace" sx={{ fontSize: 10 }}>
                                     {el.semanticId}
                                   </Typography>
                                 )}
